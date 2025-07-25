@@ -1,0 +1,15 @@
+import HeaderBox from "@/components/HeaderBox";
+import StaffTable from "@/config/staff-columns";
+
+function AllStaff() {
+	return (
+		<div className="w-full overflow-x-hidden">
+			<HeaderBox title="Staff Management" />
+			<div className="bg-[#F6F8FA] flex flex-col px-4 py-2 gap-2 w-full max-w-[100vw]">
+				<StaffTable />
+			</div>
+		</div>
+	);
+}
+
+export default AllStaff;
