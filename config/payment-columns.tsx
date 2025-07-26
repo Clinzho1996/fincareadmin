@@ -113,6 +113,12 @@ const PaymentTable = () => {
 	const [selectedRow, setSelectedRow] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 
+	const formattedAmount = (amount: number) => {
+		return new Intl.NumberFormat("en-NG", {
+			style: "currency",
+			currency: "NGN",
+		}).format(amount);
+	};
 	const openDeleteModal = (row: any) => {
 		setSelectedRow(row.original);
 		setDeleteModalOpen(true);
@@ -228,9 +234,13 @@ const PaymentTable = () => {
 			accessorKey: "amount",
 			header: "Amount",
 			cell: ({ row }) => {
-				const amount = row.getValue<string>("amount");
+				const amount = row.getValue<string>("email") || "1200000";
 
-				return <span className="text-xs text-dark-1">{amount}</span>;
+				return (
+					<span className="text-xs text-dark-1">
+						{formattedAmount(Number(amount))}
+					</span>
+				);
 			},
 		},
 		{
