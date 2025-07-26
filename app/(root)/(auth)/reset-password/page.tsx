@@ -131,7 +131,7 @@ export default function ResetPassword() {
 						<Image
 							src="/images/icon.png"
 							alt="profile"
-							className="object-cover w-full h-full lg:w-[40px] lg:h-[42px] rounded-full"
+							className="object-cover w-[50px] h-full lg:w-[40px] lg:h-[42px] rounded-full"
 							width={30}
 							height={30}
 						/>
