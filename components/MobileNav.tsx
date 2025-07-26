@@ -91,34 +91,6 @@ const MobileNav = () => {
 
 									{!isCollapsed && (
 										<>
-											<div>
-												<Image
-													src="/images/liner.png"
-													alt="sidebar asset"
-													width={234}
-													height={10}
-													className="w-full object-cover rounded-lg"
-												/>
-
-												<div className="flex flex-col justify-center items-start gap-2 px-2 py-2">
-													<h2 className="text-white text-[18px] font-inter font-bold">
-														Welcome 👋🏻 <br /> {session?.user?.name}
-													</h2>
-													<p className="text-xs text-[#6B7280]">
-														Don&apos;t just save for tomorrow — spend smart
-														today! With Kuditrak, every swipe brings you closer
-														to the life you love.
-													</p>
-
-													<Image
-														src="/images/liner.png"
-														alt="sidebar asset"
-														width={234}
-														height={10}
-														className="w-full object-cover rounded-lg"
-													/>
-												</div>
-											</div>
 											<p className="text-sm font-normal text-dark-2 pl-4 font-inter py-2">
 												MENU
 											</p>

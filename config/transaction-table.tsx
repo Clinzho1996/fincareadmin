@@ -124,7 +124,7 @@ export function TransactionTable<TData, TValue>({
 					</p>
 				</div>
 				<div className="flex flex-row justify-start items-center gap-3 font-inter">
-					<Button className="bg-primary-2 text-white font-inter">
+					<Button className="bg-primary-1 text-white font-inter">
 						<IconFileExport /> Export
 					</Button>
 				</div>
