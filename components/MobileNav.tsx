@@ -9,7 +9,7 @@ import {
 import { sidebarLinks } from "@/constants";
 import { cn } from "@/lib/utils";
 import { IconMenu } from "@tabler/icons-react";
-import { signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,7 +19,6 @@ import { toast } from "react-toastify";
 const MobileNav = () => {
 	const [isCollapsed, setIsCollapsed] = useState(false);
 	const pathname = usePathname();
-	const { data: session } = useSession();
 
 	const handleLogout = async () => {
 		try {
