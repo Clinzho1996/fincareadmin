@@ -130,7 +130,7 @@ function HeaderBox({ title }: { title: string }) {
 							side="bottom"
 							className="bg-white border border-[#E2E4E9] flex flex-col gap-3">
 							<Link
-								href="/"
+								href="/system-settings"
 								className="flex flex-row justify-start items-center gap-2 p-2 hover:bg-gray-50 rounded">
 								<IconUser size={18} color="#696E77" />
 								<p className="text-sm text-dark-1">My Account</p>
