@@ -1,15 +1,15 @@
 import HeaderBox from "@/components/HeaderBox";
-import LeaveTable from "@/config/leave-columns";
+import { InvestmentDataTable } from "@/config/inventory-table";
 
-function Leave() {
+function Inventory() {
 	return (
 		<div className="w-full overflow-x-hidden">
-			<HeaderBox title="Leave Management" />
+			<HeaderBox title="Investment Management" />
 			<div className="bg-[#F6F8FA] flex flex-col px-4 py-2 gap-2 w-full max-w-[100vw]">
-				<LeaveTable />
+				<InvestmentDataTable />
 			</div>
 		</div>
 	);
 }
 
-export default Leave;
+export default Inventory;

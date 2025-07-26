@@ -388,7 +388,7 @@ const StaffTable = () => {
 			accessorKey: "staff",
 			header: "Staff Code",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff");
+				const staff = row.getValue<string>("staff") || "FIN0001";
 
 				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
@@ -397,17 +397,14 @@ const StaffTable = () => {
 			accessorKey: "date",
 			header: "Role (s)",
 			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
+				const staff = row.getValue<string>("staff") || "Admin";
 
-				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
-				);
+				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
 		},
 		{
 			accessorKey: "date",
-			header: "Level",
+			header: "Registration Date",
 			cell: ({ row }) => {
 				const rawDate = row.original.date;
 				const date = new Date(rawDate); // ✅ Convert it to a Date object
@@ -575,27 +572,6 @@ const StaffTable = () => {
 										<SelectItem value="light">11</SelectItem>
 										<SelectItem value="dark">12</SelectItem>
 										<SelectItem value="system">13</SelectItem>
-									</SelectContent>
-								</Select>
-								<p className="text-xs text-primary-6 mt-2">Account Number</p>
-								<Input
-									type="text"
-									placeholder="Enter Account Number"
-									className="focus:border-none mt-2"
-									value={editData.lastName}
-									onChange={(e) =>
-										setEditData({ ...editData, lastName: e.target.value })
-									}
-								/>
-								<p className="text-xs text-primary-6 mt-2">Bank</p>
-								<Select>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select Bank" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="light">FCMB</SelectItem>
-										<SelectItem value="dark">UBA</SelectItem>
-										<SelectItem value="system">Fidelity</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>

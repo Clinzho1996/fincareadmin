@@ -14,10 +14,9 @@ import {
 	VisibilityState,
 } from "@tanstack/react-table";
 
-import { Button } from "@/components/ui/button";
-
 import Modal from "@/components/Modal";
 import TabCard from "@/components/TabCard";
+import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,42 +35,71 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import axios from "axios";
 import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronsLeft,
 	ChevronsRight,
 } from "lucide-react";
-import { getSession } from "next-auth/react";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
 
-interface DataTableProps<TData, TValue> {
-	columns: ColumnDef<TData, TValue>[];
-	data: TData[];
-}
-
-interface ApiResponse {
+interface Investment {
 	id: string;
-	first_name: string;
-	last_name: string;
-	email: string;
-	picture: string | null;
-	staff_code: string;
-	role: string;
-	is_active: boolean;
-	last_logged_in: string | null;
-	created_at: string;
-	updated_at: string;
-	status?: string;
+	name: string;
+	image: string;
+	amount: number;
+	currentBid: number;
+	deadline: string;
+	status: "active" | "completed" | "upcoming";
+	category: string;
 }
 
-export function InventoryDataTable<TData, TValue>({
-	columns,
-	data,
-}: DataTableProps<TData, TValue>) {
+const defaultData: Investment[] = [
+	{
+		id: "1",
+		name: "Luxury Apartment Complex",
+		image: "/images/house.jpeg",
+		amount: 5000000,
+		currentBid: 4200000,
+		deadline: "2023-12-15",
+		status: "active",
+		category: "Real Estate",
+	},
+	{
+		id: "2",
+		name: "Tech Startup Equity",
+		image: "/images/house1.jpeg",
+		amount: 2000000,
+		currentBid: 1800000,
+		deadline: "2023-11-30",
+		status: "active",
+		category: "Startups",
+	},
+	{
+		id: "3",
+		name: "Agricultural Land",
+		image: "/images/house2.jpeg",
+		amount: 1500000,
+		currentBid: 1350000,
+		deadline: "2023-10-25",
+		status: "completed",
+		category: "Agriculture",
+	},
+	{
+		id: "4",
+		name: "Renewable Energy Project",
+		image: "/images/house3.jpeg",
+		amount: 3000000,
+		currentBid: 0,
+		deadline: "2024-01-10",
+		status: "upcoming",
+		category: "Energy",
+	},
+];
+
+export function InvestmentDataTable() {
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
 		[]
@@ -82,226 +110,183 @@ export function InventoryDataTable<TData, TValue>({
 	const [selectedStatus, setSelectedStatus] = useState<string>("View All");
 	const [globalFilter, setGlobalFilter] = useState("");
 	const [isModalOpen, setModalOpen] = useState(false);
-	const [tableData, setTableData] = useState<TData[]>(data);
-	const [isLoading, setIsLoading] = useState(false);
-	const [inventoryType, setInventoryType] = useState("");
-
+	const [tableData, setTableData] = useState<Investment[]>(defaultData);
 	const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-	// State for form inputs
-	const [firstName, setFirstName] = useState("");
-	const [lastName, setLastName] = useState("");
-	const [email, setEmail] = useState("");
-	const [staffId, setStaffId] = useState("");
-	const [role, setRole] = useState("super_admin");
+	// Form state
+	const [name, setName] = useState("");
+	const [amount, setAmount] = useState("");
+	const [currentBid, setCurrentBid] = useState("");
+	const [deadline, setDeadline] = useState("");
+	const [category, setCategory] = useState("Real Estate");
+	const [imageFile, setImageFile] = useState<File | null>(null);
+
+	const columns: ColumnDef<Investment>[] = [
+		{
+			accessorKey: "name",
+			header: "Investment",
+			cell: ({ row }) => (
+				<div className="flex items-center gap-3">
+					<img
+						src={row.original.image}
+						alt={row.original.name}
+						className="w-10 h-10 rounded-md object-cover"
+					/>
+					<span className="text-sm font-medium">{row.getValue("name")}</span>
+				</div>
+			),
+		},
+		{
+			accessorKey: "amount",
+			header: "Amount",
+			cell: ({ row }) => (
+				<span className="text-sm">
+					₦{(row.getValue("amount") as number).toLocaleString()}
+				</span>
+			),
+		},
+		{
+			accessorKey: "currentBid",
+			header: "Current Bid",
+			cell: ({ row }) => (
+				<span className="text-sm">
+					{row.getValue("currentBid")
+						? `₦${(row.getValue("currentBid") as number).toLocaleString()}`
+						: "No bids"}
+				</span>
+			),
+		},
+		{
+			accessorKey: "deadline",
+			header: "Deadline",
+			cell: ({ row }) => (
+				<span className="text-sm">
+					{new Date(row.getValue("deadline")).toLocaleDateString()}
+				</span>
+			),
+		},
+		{
+			accessorKey: "status",
+			header: "Status",
+			cell: ({ row }) => {
+				const status = row.getValue("status");
+				let statusClass = "";
+				switch (status) {
+					case "active":
+						statusClass = "bg-green-100 text-green-800 status green";
+						break;
+					case "completed":
+						statusClass = "bg-blue-100 text-blue-800 status blue";
+						break;
+					case "upcoming":
+						statusClass = "bg-yellow-100 text-yellow-800 status yellow";
+						break;
+					default:
+						statusClass = "bg-gray-100 text-gray-800";
+				}
+				return (
+					<span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>
+						{String(row.getValue("status")).charAt(0).toUpperCase() +
+							String(row.getValue("status")).slice(1)}
+					</span>
+				);
+			},
+		},
+		{
+			accessorKey: "category",
+			header: "Category",
+			cell: ({ row }) => (
+				<span className="text-sm">{row.getValue("category")}</span>
+			),
+		},
+	];
 
 	const openModal = () => setModalOpen(true);
-	const closeModal = () => setModalOpen(false);
+	const closeModal = () => {
+		setModalOpen(false);
+		setName("");
+		setAmount("");
+		setCurrentBid("");
+		setDeadline("");
+		setCategory("Real Estate");
+		setImageFile(null);
+		setPreviewImage(null);
+	};
 
-	// Sync `tableData` with `data` prop
-	useEffect(() => {
-		setTableData(data);
-	}, [data]);
+	const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (file) {
+			setImageFile(file);
+			const reader = new FileReader();
+			reader.onloadend = () => {
+				setPreviewImage(reader.result as string);
+			};
+			reader.readAsDataURL(file);
+		}
+	};
 
-	// Function to filter data based on date range
-	const filterDataByDateRange = () => {
-		if (!dateRange?.from || !dateRange?.to) {
-			setTableData(data); // Reset to all data
+	const handleAddInvestment = () => {
+		if (!name || !amount || !deadline || !category) {
+			toast.error("Please fill all required fields");
 			return;
 		}
 
-		const filteredData = data.filter((farmer: any) => {
-			const dateJoined = new Date(farmer.date);
-			return dateJoined >= dateRange.from! && dateJoined <= dateRange.to!;
+		const newInvestment: Investment = {
+			id: (tableData.length + 1).toString(),
+			name,
+			image: previewImage || "/images/default-investment.jpg",
+			amount: Number(amount),
+			currentBid: currentBid ? Number(currentBid) : 0,
+			deadline,
+			status: "active",
+			category,
+		};
+
+		setTableData([...tableData, newInvestment]);
+		toast.success("Investment added successfully!");
+		closeModal();
+	};
+
+	const bulkDeleteInvestments = () => {
+		const selectedIds = Object.keys(rowSelection).map(
+			(index) => tableData[parseInt(index)].id
+		);
+
+		if (selectedIds.length === 0) {
+			toast.warn("No investments selected for deletion.");
+			return;
+		}
+
+		setTableData(tableData.filter((item) => !selectedIds.includes(item.id)));
+		setRowSelection({});
+		toast.success("Selected investments deleted successfully!");
+	};
+
+	const filterDataByDateRange = () => {
+		if (!dateRange?.from || !dateRange?.to) {
+			setTableData(defaultData);
+			return;
+		}
+
+		const filteredData = defaultData.filter((item) => {
+			const deadlineDate = new Date(item.deadline);
+			return deadlineDate >= dateRange.from! && deadlineDate <= dateRange.to!;
 		});
 
 		setTableData(filteredData);
 	};
 
-	useEffect(() => {
-		filterDataByDateRange();
-	}, [dateRange]);
-
 	const handleStatusFilter = (status: string) => {
 		setSelectedStatus(status);
 
 		if (status === "View All") {
-			setTableData(data); // Reset to all data
+			setTableData(defaultData);
 		} else {
-			const filteredData = data?.filter(
-				(farmer) =>
-					(farmer as any)?.status?.toLowerCase() === status.toLowerCase()
+			const filteredData = defaultData.filter(
+				(item) => item.status.toLowerCase() === status.toLowerCase()
 			);
-
-			setTableData(filteredData as TData[]);
-		}
-	};
-
-	const fetchStaffs = async () => {
-		try {
-			setIsLoading(true);
-			const session = await getSession();
-
-			console.log("session", session);
-
-			const accessToken = session?.accessToken;
-			if (!accessToken) {
-				console.error("No access token found.");
-				setIsLoading(false);
-				return;
-			}
-
-			const response = await axios.get<{
-				status: string;
-				message: string;
-				data: ApiResponse[];
-			}>("https://api.wowdev.com.ng/api/v1/user", {
-				headers: {
-					Accept: "application/json",
-					Authorization: `Bearer ${accessToken}`,
-				},
-			});
-
-			const fetchedData = response.data.data;
-
-			console.log("Staff Data:", fetchedData);
-
-			// Map the API response to match the `Staff` type
-			const mappedData = fetchedData.map((item) => ({
-				id: item.id,
-				name: `${item.first_name} ${item.last_name}` || "N/A",
-				date: item.created_at,
-				role: item.role,
-				staff: item.staff_code,
-				status: item.is_active ? "active" : "inactive",
-				email: item.email,
-			}));
-
-			console.log("Mapped Data:", mappedData);
-			setTableData(mappedData as TData[]);
-		} catch (error) {
-			console.error("Error fetching user data:", error);
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const handleAddStaff = async () => {
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const payload = {
-				staff_code: staffId,
-				first_name: firstName,
-				last_name: lastName,
-				email: email,
-				role: role,
-			};
-
-			const response = await axios.post(
-				"https://api.wowdev.com.ng/api/v1/user/create",
-				payload,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200 || response.status === 201) {
-				await fetchStaffs();
-
-				toast.success("Staff member added successfully!");
-
-				// Close the modal and reset form fields
-				closeModal();
-				setFirstName("");
-				setLastName("");
-				setEmail(" ");
-				setStaffId("");
-				setRole("super_admin");
-			}
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.log(
-					"Error Adding Staff:",
-					error.response?.data || error.message
-				);
-				toast.error(
-					error.response?.data?.message ||
-						"An error occurred. Please try again."
-				);
-			} else {
-				console.log("Unexpected error:", error);
-				toast.error("Unexpected error occurred.");
-			}
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const bulkDeleteStaff = async () => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				toast.error("No access token found. Please log in again.");
-				return;
-			}
-
-			const selectedIds = Object.keys(rowSelection).map(
-				(index) => (tableData[parseInt(index)] as any)?.id
-			);
-
-			if (selectedIds.length === 0) {
-				toast.warn("No staff selected for deletion.");
-				return;
-			}
-
-			console.log("Selected IDs for deletion:", selectedIds);
-
-			const response = await axios.delete(
-				"https://api.wowdev.com.ng/api/v1/user/bulk/delete",
-				{
-					data: { user_ids: selectedIds }, // Ensure this matches the API's expected payload
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				toast.success("Selected staff deleted successfully!");
-
-				// Update the table data by filtering out the deleted staff
-				setTableData((prevData) =>
-					prevData.filter((staff) => !selectedIds.includes((staff as any).id))
-				);
-
-				// Clear the selection
-				setRowSelection({});
-			}
-		} catch (error) {
-			console.error("Error bulk deleting staff:", error);
-			if (axios.isAxiosError(error)) {
-				toast.error(
-					error.response?.data?.message ||
-						"Failed to delete staff. Please try again."
-				);
-			} else {
-				toast.error("An unexpected error occurred. Please try again.");
-			}
+			setTableData(filteredData);
 		}
 	};
 
@@ -328,64 +313,101 @@ export function InventoryDataTable<TData, TValue>({
 
 	return (
 		<div className="rounded-lg border-[1px] py-0">
-			<Modal isOpen={isModalOpen} onClose={closeModal} title="Add Inventory">
+			<Modal isOpen={isModalOpen} onClose={closeModal} title="Add Investment">
 				<div className="bg-white p-0 rounded-lg w-[600px] transition-transform ease-in-out form">
 					<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
-						<div className="flex flex-col gap-2 mt-4">
-							<p className="text-xs text-primary-6">Item Name</p>
-							<Input
-								type="text"
-								placeholder="Enter item name"
-								className="focus:border-none mt-2"
-								value={staffId}
-								onChange={(e) => setStaffId(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6">Quantity</p>
-							<Input
-								type="text"
-								placeholder="Enter quantity"
-								className="focus:border-none mt-2"
-								value={firstName}
-								onChange={(e) => setFirstName(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">Inventory Type</p>
-							<Select
-								value={inventoryType}
-								onValueChange={(value) => setInventoryType(value)}>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select type" />
-								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="Sales Inventory">
-										Sales Inventory
-									</SelectItem>
-									<SelectItem value="Non-sales inventory">
-										Non-sales inventory
-									</SelectItem>
-								</SelectContent>
-							</Select>
-							{inventoryType === "Sales Inventory" && (
-								<>
-									<p className="text-xs text-primary-6 mt-2">Minimum Stock</p>
-									<Input
-										type="text"
-										placeholder="Enter minimum stock"
-										className="focus:border-none mt-2"
-										value={lastName}
-										onChange={(e) => setLastName(e.target.value)}
-									/>
-								</>
-							)}
+						<div className="flex flex-col gap-4 mt-4">
+							<div>
+								<p className="text-xs text-primary-6 mb-2">Investment Image</p>
+								<div className="flex items-center gap-4">
+									{previewImage ? (
+										<img
+											src={previewImage}
+											alt="Preview"
+											className="w-20 h-20 rounded-md object-cover"
+										/>
+									) : (
+										<div className="w-20 h-20 rounded-md bg-gray-100 flex items-center justify-center">
+											<span className="text-xs text-gray-400">No image</span>
+										</div>
+									)}
+									<label className="cursor-pointer">
+										<span className="text-xs bg-primary-1 text-white px-3 py-2 rounded">
+											Upload Image
+										</span>
+										<input
+											type="file"
+											className="hidden"
+											accept="image/*"
+											onChange={handleImageUpload}
+										/>
+									</label>
+								</div>
+							</div>
 
-							<p className="text-xs text-primary-6 mt-2">Amount</p>
-							<Input
-								type="text"
-								placeholder="Enter amount"
-								className="focus:border-none mt-2"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
-							/>
+							<div>
+								<p className="text-xs text-primary-6">Investment Name</p>
+								<Input
+									type="text"
+									placeholder="Enter investment name"
+									className="focus:border-none mt-2"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+								/>
+							</div>
+
+							<div className="grid grid-cols-2 gap-4">
+								<div>
+									<p className="text-xs text-primary-6">Amount (₦)</p>
+									<Input
+										type="number"
+										placeholder="Enter amount"
+										className="focus:border-none mt-2"
+										value={amount}
+										onChange={(e) => setAmount(e.target.value)}
+									/>
+								</div>
+								<div>
+									<p className="text-xs text-primary-6">Current Bid (₦)</p>
+									<Input
+										type="number"
+										placeholder="Enter current bid"
+										className="focus:border-none mt-2"
+										value={currentBid}
+										onChange={(e) => setCurrentBid(e.target.value)}
+									/>
+								</div>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">Bidding Deadline</p>
+								<Input
+									type="date"
+									className="focus:border-none mt-2"
+									value={deadline}
+									onChange={(e) => setDeadline(e.target.value)}
+								/>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">Category</p>
+								<Select
+									value={category}
+									onValueChange={(value) => setCategory(value)}>
+									<SelectTrigger className="w-full mt-2">
+										<SelectValue placeholder="Select category" />
+									</SelectTrigger>
+									<SelectContent className="bg-white z-10">
+										<SelectItem value="Real Estate">Real Estate</SelectItem>
+										<SelectItem value="Startups">Startups</SelectItem>
+										<SelectItem value="Agriculture">Agriculture</SelectItem>
+										<SelectItem value="Energy">Energy</SelectItem>
+										<SelectItem value="Technology">Technology</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
 						</div>
+
 						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 						<div className="flex flex-row justify-end items-center gap-3 font-inter">
 							<Button
@@ -395,14 +417,14 @@ export function InventoryDataTable<TData, TValue>({
 							</Button>
 							<Button
 								className="bg-primary-1 text-white font-inter text-xs"
-								onClick={handleAddStaff}
-								disabled={isLoading}>
-								{isLoading ? "Adding Inventory..." : "Add Inventory"}
+								onClick={handleAddInvestment}>
+								Add Investment
 							</Button>
 						</div>
 					</div>
 				</div>
 			</Modal>
+
 			<div
 				className="bg-white flex flex-row border-b-[1px] border-[#E2E4E9] justify-between items-center p-3"
 				style={{
@@ -411,18 +433,18 @@ export function InventoryDataTable<TData, TValue>({
 				}}>
 				<div className="flex flex-row justify-start items-center gap-3">
 					<TabCard
-						title="Total Inventory"
-						value={500}
+						title="Total Investments"
+						value={tableData.length}
 						icon="/images/salesicon.png"
 					/>
 					<TabCard
-						title="Sales Inventory"
-						value={120}
+						title="Active Investments"
+						value={tableData.filter((i) => i.status === "active").length}
 						icon="/images/salesicon.png"
 					/>
 					<TabCard
-						title="Non-sales Inventory"
-						value={120}
+						title="Completed Inv."
+						value={tableData.filter((i) => i.status === "completed").length}
 						icon="/images/salesicon.png"
 					/>
 				</div>
@@ -430,38 +452,40 @@ export function InventoryDataTable<TData, TValue>({
 					<Button
 						className="bg-primary-1 text-white font-inter"
 						onClick={openModal}>
-						<IconPlus /> Add Inventory
+						<IconPlus /> Add Investment
 					</Button>
 				</div>
 			</div>
 
 			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full">
 				<div className="flex flex-row justify-start bg-white items-center rounded-lg mx-auto special-btn-farmer pr-2">
-					{["View All", "Active", "Inactive"].map((status, index, arr) => (
-						<p
-							key={status}
-							className={`px-4 py-2 text-center text-sm cursor-pointer border border-[#E2E4E9] overflow-hidden ${
-								selectedStatus === status
-									? "bg-primary-5 text-dark-1"
-									: "text-dark-1"
-							} 
-			${index === 0 ? "rounded-l-lg firstRound" : ""} 
-			${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
-							onClick={() => handleStatusFilter(status)}>
-							{status}
-						</p>
-					))}
+					{["View All", "Active", "Completed", "Upcoming"].map(
+						(status, index, arr) => (
+							<p
+								key={status}
+								className={`px-4 py-2 text-center text-sm cursor-pointer border border-[#E2E4E9] overflow-hidden ${
+									selectedStatus === status
+										? "bg-primary-5 text-dark-1"
+										: "text-dark-1"
+								} 
+              ${index === 0 ? "rounded-l-lg firstRound" : ""} 
+              ${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
+								onClick={() => handleStatusFilter(status)}>
+								{status}
+							</p>
+						)
+					)}
 				</div>
-				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full ">
+				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full">
 					<Input
-						placeholder="Search Staff..."
+						placeholder="Search investments..."
 						value={globalFilter}
 						onChange={(e) => setGlobalFilter(e.target.value)}
 						className="focus:border-none bg-[#F9FAFB]"
 					/>
 					<Button
 						className="border-[#E8E8E8] border-[1px] bg-white"
-						onClick={bulkDeleteStaff}>
+						onClick={bulkDeleteInvestments}>
 						<IconTrash /> Delete
 					</Button>
 					<div className="w-[250px]">
@@ -513,6 +537,7 @@ export function InventoryDataTable<TData, TValue>({
 					)}
 				</TableBody>
 			</Table>
+
 			<div className="flex items-center justify-between bg-white rounded-lg py-3 px-2 border-t-[1px] border-gray-300 mt-2">
 				<div className="flex-1 text-xs text-primary-6 text-muted-foreground">
 					{table.getFilteredSelectedRowModel().rows.length} of{" "}

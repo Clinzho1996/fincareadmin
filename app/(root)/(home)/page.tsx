@@ -1,4 +1,4 @@
-import { DashboardStats } from "@/components/DashboardStats";
+import FinanceReport from "@/components/FinanceReport";
 import HeaderBox from "@/components/HeaderBox";
 import Hero from "@/components/Hero";
 import SalesTracker from "@/components/SalesTracker";
@@ -13,7 +13,7 @@ function Dashboard() {
 				<Hero />
 				<div className="flex flex-col lg:flex-row gap-4">
 					<SalesTracker />
-					<DashboardStats />
+					<FinanceReport />
 				</div>
 
 				<Table />

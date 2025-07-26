@@ -136,7 +136,7 @@ function SalesTracker() {
 					<div className="flex flex-col lg:flex-row justify-between items-center border-b-[1px] border-b-[#E2E4E9] py-2">
 						<div className="flex flex-row justify-start gap-2 items-center">
 							<Image src="/images/info.png" alt="info" width={20} height={20} />
-							<p className="text-sm font-bold text-black">Sales Tracker</p>
+							<p className="text-sm font-bold text-black">Report Tracker</p>
 						</div>
 						<div className="flex flex-row justify-end gap-3 items-center">
 							<Select onValueChange={setSelectedYear}>
@@ -200,7 +200,7 @@ function SalesTracker() {
 														</p>
 														<div className="flex flex-row justify-start items-center gap-1">
 															<IconRectangleFilled size={10} color="#098E09" />
-															<p className="text-dark-1">Total Customers</p>
+															<p className="text-dark-1">Total Users</p>
 														</div>
 													</div>
 													<div>
@@ -209,7 +209,7 @@ function SalesTracker() {
 														</p>
 														<div className="flex flex-row justify-start items-center gap-1">
 															<IconRectangleFilled size={10} color="#6E3FF3" />
-															<p className="text-dark-1">Total Orders</p>
+															<p className="text-dark-1">Total Loans</p>
 														</div>
 													</div>
 												</div>

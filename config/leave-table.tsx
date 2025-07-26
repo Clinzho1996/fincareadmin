@@ -252,84 +252,26 @@ export function LeaveDataTable<TData, TValue>({
 
 	return (
 		<div className="rounded-lg border-[1px] py-0">
-			<Modal isOpen={isModalOpen} onClose={closeModal} title="New Leave Type">
-				<div className="bg-white p-0 rounded-lg w-[600px] transition-transform ease-in-out form">
-					<div className="pt-2">
-						<hr className=" mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
-						<div className="flex flex-col gap-2">
-							<p className="text-xs text-primary-6">Leave Type</p>
-							<Input
-								type="text"
-								placeholder="Enter Leave Type"
-								className="focus:border-none mt-2"
-								value={firstName}
-								onChange={(e) => setFirstName(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">Days entitled</p>
-							<Input
-								type="text"
-								placeholder="Enter number of days entitled"
-								className="focus:border-none mt-2"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">Genders entitled</p>
-							<Input
-								type="text"
-								placeholder="Select Genders Entitled"
-								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">
-								Grade levels entitled
-							</p>
-							<Input
-								type="text"
-								placeholder="Enter Grade Levels Entitled"
-								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-						</div>
-						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
-						<div className="flex flex-row justify-end items-center gap-3 font-inter">
-							<Button
-								className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
-								onClick={closeModal}>
-								Cancel
-							</Button>
-							<Button
-								className="bg-primary-1 text-white font-inter text-xs"
-								onClick={handleAddStaff}
-								disabled={isLoading}>
-								{isLoading ? "Adding..." : "Add Leave Type"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			</Modal>
-
 			<Modal
 				isOpen={isApplicationModalOpen}
 				onClose={closeApplicationModal}
-				title="Request Leave Application">
+				title="Request Loan Application">
 				<div className="bg-white p-0 rounded-lg w-[600px] transition-transform ease-in-out form">
 					<div className="">
 						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 						<div className="flex flex-col gap-2">
-							<p className="text-xs text-primary-6">Staff</p>
+							<p className="text-xs text-primary-6">User</p>
 							<Input
 								type="text"
-								placeholder="Select staff requesting leave"
+								placeholder="Select user requesting loan"
 								className="focus:border-none mt-2"
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
 							/>
-							<p className="text-xs text-primary-6 mt-2">Leave type</p>
+							<p className="text-xs text-primary-6 mt-2">Loan Amount</p>
 							<Input
 								type="text"
-								placeholder="Select Leave Type"
+								placeholder="Enter Loan Amount"
 								className="focus:border-none mt-2"
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
@@ -377,20 +319,16 @@ export function LeaveDataTable<TData, TValue>({
 				<div className="flex flex-row justify-start items-center gap-3">
 					<Link href="#">
 						<TabCard
-							title="Leave Types"
-							value={10}
+							title="Total Loans"
+							value={55}
 							icon="/images/totalstaff.png"
 						/>
 					</Link>
 					<Link href="#">
-						<TabCard title="Applications" value={12} icon="/images/leave.png" />
+						<TabCard title="Active Loans" value={12} icon="/images/leave.png" />
 					</Link>
 					<Link href="#">
-						<TabCard
-							title="Staff on Leave"
-							value={120}
-							icon="/images/all.png"
-						/>
+						<TabCard title="Pending Loans" value={43} icon="/images/all.png" />
 					</Link>
 				</div>
 			</div>
@@ -416,18 +354,14 @@ export function LeaveDataTable<TData, TValue>({
 				</div>
 				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full ">
 					<Input
-						placeholder="Search Staff..."
+						placeholder="Search User..."
 						value={globalFilter}
 						onChange={(e) => setGlobalFilter(e.target.value)}
 						className="focus:border-none bg-[#F9FAFB]"
 					/>
+
 					<Button
 						className="bg-primary-1 text-white font-inter"
-						onClick={openModal}>
-						<IconPlus /> New leave type
-					</Button>
-					<Button
-						className="bg-transparent text-gray-300 font-inter border border-gray-300"
 						onClick={openApplicationModal}>
 						<IconPlus /> New Application
 					</Button>

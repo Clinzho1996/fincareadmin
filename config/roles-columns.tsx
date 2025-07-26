@@ -6,114 +6,69 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { ColumnDef } from "@tanstack/react-table";
-import axios from "axios";
-import { getSession } from "next-auth/react";
 import Link from "next/link";
-import React, { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 import { RolesDataTable } from "./roles-table";
 
 // This type is used to define the shape of our data.
-export type Categories = {
+export type Role = {
 	id: string;
-	image: string;
 	name: string;
+	assignees: number;
 	created_at: string;
 };
 
-interface ApiResponse {
-	status: string;
-	data: {
-		id: string;
-		name: string;
-		image: string;
-		created_at: string;
-		updated_at: string;
-	}[];
-}
-
 const RolesTable = () => {
 	const [isModalOpen, setModalOpen] = useState(false);
-	const [featuredImage, setFeaturedImage] = useState<File | null>(null);
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
-	const [selectedRow, setSelectedRow] = useState<Categories | null>(null);
-	const [previewImage, setPreviewImage] = useState<string | null>(null);
-	const [tableData, setTableData] = useState<Categories[]>([]);
-	const [isLoading, setIsLoading] = useState(false);
+	const [selectedRow, setSelectedRow] = useState<Role | null>(null);
 	const [editedName, setEditedName] = useState("");
 
-	const fetchCategories = useCallback(async () => {
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
+	// Static roles data
+	const rolesData: Role[] = [
+		{
+			id: "1",
+			name: "Super Admin",
+			assignees: 1,
+			created_at: "2023-01-15",
+		},
+		{
+			id: "2",
+			name: "Admin",
+			assignees: 3,
+			created_at: "2023-02-20",
+		},
+		{
+			id: "3",
+			name: "Content Manager",
+			assignees: 5,
+			created_at: "2023-03-10",
+		},
+		{
+			id: "4",
+			name: "Customer Support",
+			assignees: 8,
+			created_at: "2023-04-05",
+		},
+		{
+			id: "5",
+			name: "Moderator",
+			assignees: 4,
+			created_at: "2023-05-12",
+		},
+	];
 
-			if (!accessToken) {
-				console.error("No access token found.");
-				setIsLoading(false);
-				return;
-			}
-
-			const response = await axios.get<ApiResponse>(
-				`https://api.comicscrolls.com/api/v1/genre`,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.data.status === "success") {
-				const formattedData = response.data.data.map((item) => ({
-					id: item.id,
-					name: item.name,
-					image: item.image,
-					created_at: formatDate(item.created_at),
-				}));
-				setTableData(formattedData);
-			}
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.error(
-					"Error fetching categories:",
-					error.response?.data || error.message
-				);
-			} else {
-				console.error("Unexpected error fetching categories:", error);
-			}
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
-
-	useEffect(() => {
-		fetchCategories();
-	}, [fetchCategories]);
+	const [tableData, setTableData] = useState<Role[]>(rolesData);
 
 	const openModal = (row: any) => {
 		setSelectedRow(row.original);
 		setEditedName(row.original.name);
-		setPreviewImage(row.original.image);
 		setModalOpen(true);
 	};
 
 	const closeModal = () => setModalOpen(false);
 
-	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0] || null;
-		setFeaturedImage(file);
-
-		if (file) {
-			const reader = new FileReader();
-			reader.onloadend = () => {
-				setPreviewImage(reader.result as string);
-			};
-			reader.readAsDataURL(file);
-		} else {
-			setPreviewImage(null);
-		}
-	};
 	const openDeleteModal = (row: any) => {
 		setSelectedRow(row.original);
 		setDeleteModalOpen(true);
@@ -123,69 +78,28 @@ const RolesTable = () => {
 		setDeleteModalOpen(false);
 	};
 
-	const formatDate = (rawDate?: string | Date) => {
-		if (!rawDate) return "Unknown"; // Handle undefined case
+	const formatDate = (dateString: string) => {
 		const options: Intl.DateTimeFormatOptions = {
 			year: "numeric",
-			month: "long",
+			month: "short",
 			day: "numeric",
 		};
-		const parsedDate =
-			typeof rawDate === "string" ? new Date(rawDate) : rawDate;
-		return new Intl.DateTimeFormat("en-US", options).format(parsedDate);
+		return new Date(dateString).toLocaleDateString("en-US", options);
 	};
 
-	const handleEdit = async () => {
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
+	const handleEdit = () => {
+		if (!selectedRow) return;
 
-			if (!accessToken) {
-				console.error("No access token found.");
-				toast.error("Authentication failed.");
-				setIsLoading(false);
-				return;
-			}
-
-			const formData = new FormData();
-			formData.append("name", editedName);
-			if (featuredImage) {
-				formData.append("image", featuredImage);
-			}
-
-			await axios.post(
-				`https://api.comicscrolls.com/api/v1/genre/${selectedRow?.id}`,
-				formData,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-						"Content-Type": "multipart/form-data",
-					},
-				}
-			);
-
-			toast.success("Category updated successfully.");
-			await fetchCategories();
-			closeModal();
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.error(
-					"Error updating category:",
-					error.response?.data || error.message
-				);
-				toast.error(`Failed to update category: ${error.message}`);
-			} else {
-				console.error("Unexpected error updating category:", error);
-				toast.error("An unexpected error occurred.");
-			}
-		} finally {
-			setIsLoading(false);
-		}
+		setTableData((prevData) =>
+			prevData.map((role) =>
+				role.id === selectedRow.id ? { ...role, name: editedName } : role
+			)
+		);
+		toast.success("Role updated successfully.");
+		closeModal();
 	};
 
-	const columns: ColumnDef<Categories>[] = [
+	const columns: ColumnDef<Role>[] = [
 		{
 			id: "select",
 			header: ({ table }) => (
@@ -212,17 +126,23 @@ const RolesTable = () => {
 			accessorKey: "name",
 			header: "Role (s)",
 			cell: ({ row }) => {
-				const category = row.getValue<string>("name");
-				return (
-					<span className="text-xs text-dark-1 capitalize">{category}</span>
-				);
+				const role = row.getValue<string>("name");
+				return <span className="text-xs text-dark-1 capitalize">{role}</span>;
+			},
+		},
+		{
+			accessorKey: "assignees",
+			header: "Assignees",
+			cell: ({ row }) => {
+				const assignees = row.getValue<number>("assignees");
+				return <span className="text-xs text-dark-1">{assignees} users</span>;
 			},
 		},
 		{
 			accessorKey: "created_at",
-			header: "Assignees",
+			header: "Created At",
 			cell: ({ row }) => {
-				const date = row.getValue<string>("created_at");
+				const date = formatDate(row.getValue<string>("created_at"));
 				return <span className="text-xs text-dark-1">{date}</span>;
 			},
 		},
@@ -253,46 +173,14 @@ const RolesTable = () => {
 		},
 	];
 
-	const handleDelete = async () => {
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
+	const handleDelete = () => {
+		if (!selectedRow) return;
 
-			if (!accessToken) {
-				console.error("No access token found.");
-				toast.error("Authentication failed.");
-				setIsLoading(false);
-				return;
-			}
-
-			await axios.delete(
-				`https://api.comicscrolls.com/api/v1/genre/${selectedRow?.id}`,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			toast.success("Category deleted successfully.");
-			await fetchCategories();
-			closeDeleteModal();
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.error(
-					"Error deleting category:",
-					error.response?.data || error.message
-				);
-				toast.error(`Failed to delete category: ${error.message}`);
-			} else {
-				console.error("Unexpected error deleting category:", error);
-				toast.error("An unexpected error occurred.");
-			}
-		} finally {
-			setIsLoading(false);
-		}
+		setTableData((prevData) =>
+			prevData.filter((role) => role.id !== selectedRow.id)
+		);
+		toast.success("Role deleted successfully.");
+		closeDeleteModal();
 	};
 
 	return (
@@ -304,11 +192,11 @@ const RolesTable = () => {
 					isOpen={isModalOpen}
 					className="category"
 					onClose={closeModal}
-					title="Edit Category">
+					title="Edit Role">
 					<div className="bg-white py-1 rounded-lg transition-transform ease-in-out max-h[70vh]">
 						<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
 							<div className="mb-4">
-								<p className="text-xs text-dark-1 font-inter">Name of Genre</p>
+								<p className="text-xs text-dark-1 font-inter">Role Name</p>
 								<Input
 									value={editedName}
 									onChange={(e) => setEditedName(e.target.value)}
@@ -325,7 +213,7 @@ const RolesTable = () => {
 								<Button
 									className="bg-primary-1 text-white font-inter text-xs px-4 py-1"
 									onClick={handleEdit}>
-									Update Category
+									Update Role
 								</Button>
 							</div>
 						</div>
@@ -335,8 +223,7 @@ const RolesTable = () => {
 
 			{isDeleteModalOpen && (
 				<Modal onClose={closeDeleteModal} isOpen={isDeleteModalOpen}>
-					<p>Are you sure you want to delete {selectedRow?.name} category?</p>
-
+					<p>Are you sure you want to delete the {selectedRow?.name} role?</p>
 					<p className="text-sm text-dark-1">This can't be undone</p>
 					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
 						<Button
@@ -346,10 +233,7 @@ const RolesTable = () => {
 						</Button>
 						<Button
 							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
-							onClick={() => {
-								handleDelete();
-								closeDeleteModal();
-							}}>
+							onClick={handleDelete}>
 							Yes, Confirm
 						</Button>
 					</div>

@@ -13,8 +13,8 @@ interface SettingItem {
 
 export default function SystemSettings() {
 	const [settings, setSettings] = useState<SettingItem[]>([
-		{ id: "1", name: "Pickup", value: "Set Value" },
-		{ id: "2", name: "Delivery", value: "Set Value" },
+		{ id: "1", name: "Membership Fee", value: "Set Value" },
+		{ id: "2", name: "Loan Penalty", value: "Set Value" },
 		{ id: "3", name: "VAT", value: "Set Value" },
 	]);
 

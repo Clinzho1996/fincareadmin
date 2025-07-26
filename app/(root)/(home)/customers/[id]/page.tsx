@@ -4,7 +4,6 @@ import Loader from "@/components/Loader";
 import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Readers } from "@/config/columns";
 import CustomerSalesTable from "@/config/customer-sales-columns";
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import axios from "axios";
@@ -14,6 +13,17 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
+interface Readers {
+	id: string;
+	firstName: string;
+	lastName: string;
+	name: string;
+	email: string;
+	staff: string;
+	role: string;
+	status: string;
+	profile_pic: string;
+}
 interface ApiResponse {
 	data: Readers;
 }
@@ -317,9 +327,9 @@ function CustomerDetails() {
 								className="w-15 h-15 rounded-full"
 							/>
 							<div>
-								<h1 className="text-2xl font-semibold">Johnbosco Femi Jude</h1>
+								<h1 className="text-2xl font-semibold">Confidence Clinton</h1>
 								<div className="flex items-center gap-4 mt-2">
-									<span className="text-gray-600">johnbosco@gmail.com</span>
+									<span className="text-gray-600">devclinton@gmail.com</span>
 									<span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
 										Active
 									</span>
@@ -354,7 +364,7 @@ function CustomerDetails() {
 								<h3 className="text-sm font-medium text-gray-500 mb-1">
 									Email
 								</h3>
-								<p className="text-gray-800">Johnbosco@gmail.com</p>
+								<p className="text-gray-800">devclinton@gmail.com</p>
 							</div>
 							<div>
 								<h3 className="text-sm font-medium text-gray-500 mb-1">
@@ -370,9 +380,21 @@ function CustomerDetails() {
 							</div>
 							<div>
 								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Wallet balance
+									Total Savings
 								</h3>
-								<p className="text-gray-800">$400</p>
+								<p className="text-gray-800">₦400,000</p>
+							</div>
+							<div>
+								<h3 className="text-sm font-medium text-gray-500 mb-1">
+									Total Loans
+								</h3>
+								<p className="text-gray-800">₦150,000</p>
+							</div>
+							<div>
+								<h3 className="text-sm font-medium text-gray-500 mb-1">
+									Total Investment
+								</h3>
+								<p className="text-gray-800">₦,400,000</p>
 							</div>
 						</div>
 					</div>
@@ -380,7 +402,7 @@ function CustomerDetails() {
 					{/* Account Details */}
 					<div>
 						<h2 className="text-lg font-medium mb-4 pb-2 border-b border-gray-200">
-							Sales History
+							Saving History
 						</h2>
 
 						<CustomerSalesTable />

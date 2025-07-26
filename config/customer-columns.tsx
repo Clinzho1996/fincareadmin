@@ -364,15 +364,7 @@ const CustomerTable = () => {
 				);
 			},
 		},
-		{
-			accessorKey: "staff",
-			header: "Customer ID",
-			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff");
 
-				return <span className="text-xs text-primary-6">{staff}</span>;
-			},
-		},
 		{
 			accessorKey: "date",
 			header: "Home Address",
@@ -386,15 +378,30 @@ const CustomerTable = () => {
 			},
 		},
 		{
-			accessorKey: "date",
+			accessorKey: "staff",
+			header: "Total Savings",
+			cell: ({ row }) => {
+				const staff = row.getValue<string>("staff") || "₦109,000";
+
+				return <span className="text-xs text-primary-6">{staff}</span>;
+			},
+		},
+		{
+			accessorKey: "staff",
+			header: "Total Investments",
+			cell: ({ row }) => {
+				const staff = row.getValue<string>("staff") || "₦315,000";
+
+				return <span className="text-xs text-primary-6">{staff}</span>;
+			},
+		},
+		{
+			accessorKey: "staff",
 			header: "Phone No.",
 			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
+				const staff = row.getValue<string>("staff") || "+2348012345678";
 
-				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
-				);
+				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
 		},
 		{
@@ -502,6 +509,26 @@ const CustomerTable = () => {
 									<SelectContent className="bg-white z-10 select text-gray-300">
 										<SelectItem value="light">Male</SelectItem>
 										<SelectItem value="dark">Female</SelectItem>
+									</SelectContent>
+								</Select>
+								<p className="text-xs text-primary-6 mt-2">Account Number</p>
+								<Input
+									type="text"
+									placeholder="Enter Account Number"
+									className="focus:border-none mt-2"
+									onChange={(e) =>
+										setEditData({ ...editData, email: e.target.value })
+									}
+								/>
+								<p className="text-xs text-primary-6 mt-2">Bank</p>
+								<Select>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder="Select Bank" />
+									</SelectTrigger>
+									<SelectContent className="bg-white z-10 select text-gray-300">
+										<SelectItem value="light">FCMB</SelectItem>
+										<SelectItem value="dark">UBA</SelectItem>
+										<SelectItem value="system">Fidelity</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>

@@ -415,36 +415,8 @@ export function StaffDataTable<TData, TValue>({
 									<SelectItem value="system">Finance</SelectItem>
 								</SelectContent>
 							</Select>
-							<p className="text-xs text-primary-6 mt-2">Grade Level</p>
-							<Select>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select level" />
-								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="light">11</SelectItem>
-									<SelectItem value="dark">12</SelectItem>
-									<SelectItem value="system">13</SelectItem>
-								</SelectContent>
-							</Select>
-							<p className="text-xs text-primary-6 mt-2">Account Number</p>
-							<Input
-								type="text"
-								placeholder="Enter Account Number"
-								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">Bank</p>
-							<Select>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select Bank" />
-								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="light">FCMB</SelectItem>
-									<SelectItem value="dark">UBA</SelectItem>
-									<SelectItem value="system">Fidelity</SelectItem>
-								</SelectContent>
-							</Select>
+
+						
 						</div>
 						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 						<div className="flex flex-row justify-end items-center gap-3 font-inter">
@@ -472,11 +444,15 @@ export function StaffDataTable<TData, TValue>({
 				<div className="flex flex-row justify-start items-center gap-3">
 					<TabCard
 						title="Total Staff"
-						value={500}
+						value={50}
 						icon="/images/totalstaff.png"
 					/>
-					<TabCard title="On Leave" value={120} icon="/images/leave.png" />
-					<TabCard title="Active Staff" value={120} icon="/images/all.png" />
+					<TabCard
+						title="Suspended Staff"
+						value={12}
+						icon="/images/leave.png"
+					/>
+					<TabCard title="Active Staff" value={38} icon="/images/all.png" />
 				</div>
 				<div className="flex flex-row justify-start items-center gap-3 font-inter">
 					<Button

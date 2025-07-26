@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { getSession } from "next-auth/react";
 import Image from "next/image";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
 
@@ -117,21 +117,6 @@ export function RolesDataTable<TData, TValue>({
 		setTableData(data);
 	}, [data]);
 
-	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0] || null;
-		setFeaturedImage(file);
-
-		if (file) {
-			const reader = new FileReader();
-			reader.onloadend = () => {
-				setPreviewImage(reader.result as string);
-			};
-			reader.readAsDataURL(file);
-		} else {
-			setPreviewImage(null);
-		}
-	};
-
 	const formatDate = (rawDate?: string | Date) => {
 		if (!rawDate) return "Unknown"; // Handle undefined case
 		const options: Intl.DateTimeFormatOptions = {
@@ -143,55 +128,6 @@ export function RolesDataTable<TData, TValue>({
 			typeof rawDate === "string" ? new Date(rawDate) : rawDate;
 		return new Intl.DateTimeFormat("en-US", options).format(parsedDate);
 	};
-
-	const fetchCategories = useCallback(async () => {
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				setIsLoading(false);
-				return;
-			}
-
-			const response = await axios.get<ApiResponse>(
-				`https://api.comicscrolls.com/api/v1/genre`,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.data.status === "success") {
-				const formattedData = response.data.data.map((item) => ({
-					id: item.id,
-					name: item.name,
-					image: item.image,
-					created_at: formatDate(item.created_at),
-				}));
-				setTableData(formattedData as TData[]);
-			}
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.error(
-					"Error fetching categories:",
-					error.response?.data || error.message
-				);
-			} else {
-				console.error("Unexpected error fetching categories:", error);
-			}
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
-
-	useEffect(() => {
-		fetchCategories();
-	}, [fetchCategories]);
 
 	const handleCreateGenre = async () => {
 		setIsLoading(true);
@@ -227,7 +163,6 @@ export function RolesDataTable<TData, TValue>({
 			if (response.data.status === "success") {
 				toast.success("Genre created successfully.");
 
-				await fetchCategories();
 				closeModal();
 			} else {
 				toast.error("Failed to create genre.");
@@ -246,17 +181,6 @@ export function RolesDataTable<TData, TValue>({
 		} finally {
 			setIsLoading(false);
 		}
-	};
-
-	const handleDelete = () => {
-		const selectedRowIds = Object.keys(rowSelection).filter(
-			(key) => rowSelection[key]
-		);
-		const filteredData = tableData.filter(
-			(_, index) => !selectedRowIds.includes(index.toString())
-		);
-		setTableData(filteredData);
-		setRowSelection({});
 	};
 
 	const table = useReactTable({
@@ -341,7 +265,7 @@ export function RolesDataTable<TData, TValue>({
 							width={20}
 						/>
 						<p className="text-sm text-dark-1 font-medium font-inter">
-							Category Management
+							Role Management
 						</p>
 					</div>
 

@@ -13,7 +13,14 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { IconCheck, IconX } from "@tabler/icons-react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { IconCheck, IconRefresh, IconX } from "@tabler/icons-react";
 import axios from "axios";
 import { getSession } from "next-auth/react";
 import Image from "next/image";
@@ -69,6 +76,11 @@ const LeaveTable = () => {
 	const openDeleteModal = (row: any) => {
 		setSelectedRow(row.original);
 		setDeleteModalOpen(true);
+	};
+
+	const openReactivateModal = (row: any) => {
+		setSelectedRow(row.original);
+		setReactivateModalOpen(true);
 	};
 
 	const closeRestoreModal = () => {
@@ -288,18 +300,18 @@ const LeaveTable = () => {
 		},
 		{
 			accessorKey: "staff",
-			header: "Leave Type",
+			header: "Loan Amount",
 			cell: () => {
 				// const staff = row.getValue<string>("staff");
 
-				return <span className="text-xs text-primary-6">Sick Leave</span>;
+				return <span className="text-xs text-primary-6">N200,000</span>;
 			},
 		},
 		{
 			accessorKey: "staff",
 			header: "Days Requested",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff") || "12 of 15 days";
+				const staff = row.getValue<string>("staff") || "15 days";
 
 				return (
 					<div className="flex flex-col">
@@ -360,6 +372,13 @@ const LeaveTable = () => {
 							</DropdownMenuItem>
 
 							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-blue-100"
+								onClick={() => openReactivateModal(row)}>
+								<IconRefresh />
+								<p className="text-xs font-inter">Recommend Request</p>
+							</DropdownMenuItem>
+
+							<DropdownMenuItem
 								className="action cursor-pointer hover:bg-red-500"
 								onClick={() => openDeleteModal(row)}>
 								<IconX color="#F43F5E" />
@@ -385,8 +404,7 @@ const LeaveTable = () => {
 			{isRestoreModalOpen && (
 				<Modal onClose={closeRestoreModal} isOpen={isRestoreModalOpen}>
 					<p className="mt-4">
-						Are you sure you want to approve {selectedRow?.name}'s leave
-						request?
+						Are you sure you want to approve {selectedRow?.name}'s loan request?
 					</p>
 					<p className="text-sm text-primary-6">This can't be undone</p>
 					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
@@ -409,10 +427,17 @@ const LeaveTable = () => {
 
 			{isReactivateModalOpen && (
 				<Modal onClose={closeReactivateModal} isOpen={isReactivateModalOpen}>
-					<p className="mt-4">
-						Are you sure you want to reactivate {selectedRow?.name}'s account?
-					</p>
-					<p className="text-sm text-primary-6">This can't be undone</p>
+					<p className="mt-4">Recommend {selectedRow?.name}'s loan request?</p>
+					<p className="text-xs text-primary-6 mt-2">Recommend to</p>
+					<Select>
+						<SelectTrigger className="w-full mt-3">
+							<SelectValue placeholder="Select User" />
+						</SelectTrigger>
+						<SelectContent className="bg-white z-10 select text-gray-300">
+							<SelectItem value="light">Dele Ajibola</SelectItem>
+							<SelectItem value="dark">Confidence Clinton</SelectItem>
+						</SelectContent>
+					</Select>
 					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
 						<Button
 							className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
@@ -434,7 +459,7 @@ const LeaveTable = () => {
 			{isDeleteModalOpen && (
 				<Modal onClose={closeDeleteModal} isOpen={isDeleteModalOpen}>
 					<p>
-						Are you sure you want to reject {selectedRow?.name}'s leave request?
+						Are you sure you want to reject {selectedRow?.name}'s loan request?
 					</p>
 
 					<p className="text-sm text-primary-6">This can't be undone</p>

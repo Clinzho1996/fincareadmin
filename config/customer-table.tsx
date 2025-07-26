@@ -299,6 +299,25 @@ export function CustomerDataTable<TData, TValue>({
 									<SelectItem value="dark">Female</SelectItem>
 								</SelectContent>
 							</Select>
+							<p className="text-xs text-primary-6 mt-2">Account Number</p>
+							<Input
+								type="text"
+								placeholder="Enter Account Number"
+								className="focus:border-none mt-2"
+								value={lastName}
+								onChange={(e) => setLastName(e.target.value)}
+							/>
+							<p className="text-xs text-primary-6 mt-2">Bank</p>
+							<Select>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Select Bank" />
+								</SelectTrigger>
+								<SelectContent className="bg-white z-10 select text-gray-300">
+									<SelectItem value="light">FCMB</SelectItem>
+									<SelectItem value="dark">UBA</SelectItem>
+									<SelectItem value="system">Fidelity</SelectItem>
+								</SelectContent>
+							</Select>
 						</div>
 						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 						<div className="flex flex-row justify-end items-center gap-3 font-inter">

@@ -1,41 +1,41 @@
 "use client";
 
-import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import {
+	ColumnDef,
+	ColumnFiltersState,
+	RowSelectionState,
+	SortingState,
+	VisibilityState,
+} from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 
 import Loader from "@/components/Loader";
+import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MoreHorizontal } from "lucide-react";
-
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconEye } from "@tabler/icons-react";
+import { IconCloudDownload } from "@tabler/icons-react";
 import axios from "axios";
 import { getSession } from "next-auth/react";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { DataTable } from "./data-table";
+import React, { useEffect, useState } from "react";
+import { TransactionTable } from "./transaction-table";
 
-// Define the expected API response type
-
-export type Readers = {
+interface ApiResponse {
+	data: Transaction[];
+}
+export type Transaction = {
 	id: string;
+	user: { first_name: string; last_name: string; other_name: string };
 	name: string;
+	first_name: string;
+	last_name: string;
+	other_name: string;
+	amount: string;
 	date: string;
-	firstName?: string;
-	lastName?: string;
-	role?: string;
-	staff?: string;
-	bookRead: number;
-	subStatus: "free" | "subscribed";
-	status: "Completed" | "In Progress" | "Cancelled" | "inactive" | "active";
-	email: string;
-	profile_pic?: string;
+	created: string;
+	created_at: string;
+	ref_id: string;
+	status: string;
+	narration: string;
 };
 
 declare module "next-auth" {
@@ -46,27 +46,39 @@ declare module "next-auth" {
 
 const Table = () => {
 	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [tableData, setTableData] = useState<Transaction[]>([]);
+	const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
-	const [isCloseModalOpen, setCloseModalOpen] = useState(false);
-	const [selectedRow, setSelectedRow] = useState<Readers | null>(null);
-	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-	const [tableData, setTableData] = useState<Readers[]>([]);
-	const [progress, setProgress] = useState(0);
+	const [selectedRow, setSelectedRow] = useState<any>(null);
 
-	const openDeleteModal = (row: { original: Readers }) => {
-		setSelectedRow(row.original);
+	const [sorting, setSorting] = React.useState<SortingState>([]);
+	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+		[]
+	);
+	const [columnVisibility, setColumnVisibility] =
+		React.useState<VisibilityState>({});
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [globalFilter, setGlobalFilter] = useState("");
+
+	const openRestoreModal = (row: any) => {
+		setSelectedRow(row.original); // Use row.original to store the full row data
+		setRestoreModalOpen(true);
+	};
+
+	const openDeleteModal = (row: any) => {
+		setSelectedRow(row.original); // Use row.original to store the full row data
 		setDeleteModalOpen(true);
 	};
 
-	const openCloseModal = (row: { original: Readers }) => {
-		setSelectedRow(row.original);
-		setCloseModalOpen(true);
+	const closeRestoreModal = () => {
+		setRestoreModalOpen(false);
 	};
 
-	const closeDeleteModal = () => setDeleteModalOpen(false);
-	const closeCloseModal = () => setCloseModalOpen(false);
+	const closeDeleteModal = () => {
+		setDeleteModalOpen(false);
+	};
 
-	const fetchBudgetData = async () => {
+	const fetchTransactionHistory = async () => {
 		try {
 			setIsLoading(true);
 			const session = await getSession();
@@ -77,8 +89,8 @@ const Table = () => {
 				return;
 			}
 
-			const response = await axios.get(
-				"https://api.comicscrolls.com/api/v1/user/role?type=reader",
+			const response = await axios.get<ApiResponse>(
+				"https://api.kuditrak.ng/api/v1/transaction",
 				{
 					headers: {
 						Accept: "application/json",
@@ -87,54 +99,51 @@ const Table = () => {
 				}
 			);
 
-			if (response.data.status === "success") {
-				// Map the API response to match the `Readers` type
-				const formattedData = response.data.data.map((reader: any) => ({
-					id: reader.id,
-					name: reader.full_name,
-					date: reader.created_at,
-					bookRead: reader.books_read,
-					subStatus: reader.is_premium ? "subscribed" : "free",
-					status: reader.is_blocked ? "inactive" : "active",
-					email: reader.email,
-				}));
+			const fetchedData = response.data.data;
 
-				setTableData(formattedData);
+			console.log("Transaction Data:", fetchedData);
 
-				console.log("Readers Data:", formattedData);
-			}
+			const mappedData = fetchedData.map((item) => ({
+				id: item.id,
+				name: `${item.user.first_name} ${item.user.last_name} ${
+					item.user.other_name || ""
+				}`,
+				first_name: item.user.first_name,
+				user: item.user,
+				last_name: item.user.last_name,
+				other_name: item.user.other_name,
+				amount: item.amount,
+				date: item.date,
+				narration: item.narration,
+				ref_id: item.ref_id,
+				created: item.created_at,
+				created_at: item.created_at,
+				status: item.ref_id ? "completed" : "pending",
+			}));
+
+			setTableData(mappedData);
 		} catch (error) {
-			console.error("Error fetching budget data:", error);
+			console.error("Error fetching user data:", error);
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchBudgetData();
+		fetchTransactionHistory();
 	}, []);
 
-	const formatDate = (rawDate: string | Date) => {
+	const formatDate = (rawDate: string) => {
 		const options: Intl.DateTimeFormatOptions = {
 			year: "numeric",
 			month: "long",
 			day: "numeric",
-		};
-		const parsedDate =
-			typeof rawDate === "string" ? new Date(rawDate) : rawDate;
+		}; // Correct types
+		const parsedDate = new Date(rawDate); // Ensure the date is parsed correctly
 		return new Intl.DateTimeFormat("en-US", options).format(parsedDate);
 	};
 
-	const formatCurrency = (amount: string) => {
-		return new Intl.NumberFormat("en-NG", {
-			style: "currency",
-			currency: "NGN",
-			minimumFractionDigits: 2,
-		}).format(parseFloat(amount));
-	};
-
-	// Define table columns
-	const columns: ColumnDef<Readers>[] = [
+	const columns: ColumnDef<Transaction>[] = [
 		{
 			id: "select",
 			header: ({ table }) => (
@@ -159,58 +168,36 @@ const Table = () => {
 		},
 		{
 			accessorKey: "name",
-			header: "Order ID",
-			cell: ({ row }) => {
-				if (!row) return null; // or return a placeholder
-				const name = row.getValue<string>("name") || "N/A";
+			header: ({ column }) => {
 				return (
-					<span className="text-xs text-black capitalize t-data">{name}</span>
+					<Button
+						variant="ghost"
+						className="text-[13px] text-left"
+						onClick={() =>
+							column.toggleSorting(column.getIsSorted() === "asc")
+						}>
+						Name
+						<ArrowUpDown className="ml-2 h-4 w-4" />
+					</Button>
 				);
 			},
-		},
-		{
-			accessorKey: "staff",
-			header: "Customer Name",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff");
+				const name = row.getValue<string>("name");
 
-				return <span className="text-xs text-primary-6">{staff}</span>;
+				return <span className="text-xs text-black">{name}</span>;
 			},
 		},
 
 		{
-			accessorKey: "date",
-			header: "Date",
+			accessorKey: "amount",
+			header: "Amount",
 			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
+				const amount = row.getValue<string>("amount");
 
-				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
-				);
+				return <span className="text-xs text-primary-6">{amount}</span>;
 			},
 		},
-		{
-			accessorKey: "staff",
-			header: "Order Type",
-			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff");
 
-				return <span className="text-xs text-primary-6">{staff}</span>;
-			},
-		},
-		{
-			accessorKey: "date",
-			header: "Service Type",
-			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
-
-				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
-				);
-			},
-		},
 		{
 			accessorKey: "status",
 			header: ({ column }) => {
@@ -229,12 +216,60 @@ const Table = () => {
 			cell: ({ row }) => {
 				const status = row.getValue<string>("status");
 				return (
-					<div className={`status ${status === "active" ? "green" : "red"}`}>
+					<div className={`status ${status === "completed" ? "green" : "red"}`}>
 						{status}
 					</div>
 				);
 			},
 		},
+
+		{
+			accessorKey: "id",
+			header: "Transaction ID",
+			cell: ({ row }) => {
+				const id = row.getValue<string>("id");
+
+				return (
+					<span className="text-xs text-primary-6">
+						{id.length > 20 ? id.slice(0, 20) + "..." : id}
+					</span>
+				);
+			},
+		},
+		{
+			accessorKey: "created",
+			header: ({ column }) => {
+				return (
+					<Button
+						variant="ghost"
+						className="text-[13px] text-left"
+						onClick={() =>
+							column.toggleSorting(column.getIsSorted() === "asc")
+						}>
+						Created on
+						<ArrowUpDown className="ml-2 h-4 w-4" />
+					</Button>
+				);
+			},
+			cell: ({ row }) => {
+				const created = row.getValue<string>("created");
+
+				return (
+					<span className="text-xs text-primary-6">{formatDate(created)}</span>
+				);
+			},
+		},
+
+		{
+			accessorKey: "narration",
+			header: "Narration",
+			cell: ({ row }) => {
+				const narration = row.getValue<string>("narration");
+
+				return <span className="text-xs text-primary-6">{narration}</span>;
+			},
+		},
+
 		{
 			id: "actions",
 			header: "Action",
@@ -242,35 +277,59 @@ const Table = () => {
 				const actions = row.original;
 
 				return (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								className="h-8 w-8 p-2 bg-white border-[1px] bborder-[#E8E8E8]">
-								<span className="sr-only">Open menu</span>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="bg-white">
-							<Link href={`/orders/${actions.id}`}>
-								<DropdownMenuItem className="action cursor-pointer hover:bg-secondary-3">
-									<IconEye />
-									<p className="text-xs font-inter">View Order</p>
-								</DropdownMenuItem>
-							</Link>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<div className="flex flex-row justify-start items-center gap-5">
+						<Button
+							className="border-[#E8E8E8] border-[1px] text-sm font-medium text-[#6B7280] font-inter"
+							onClick={() => openDeleteModal(row)}>
+							<IconCloudDownload />
+						</Button>
+					</div>
 				);
 			},
 		},
 	];
+
+	const handleDelete = () => {
+		const selectedRowIds = Object.keys(rowSelection).filter(
+			(key) => rowSelection[key]
+		);
+
+		// Ensure the row ids match the data's keys and use the correct identifier
+		const filteredData = tableData.filter(
+			(row) => !selectedRowIds.includes(row.id) // assuming row.id is your unique identifier
+		);
+		setTableData(filteredData);
+		setRowSelection({}); // Clear row selection after deletion
+	};
 
 	return (
 		<>
 			{isLoading ? (
 				<Loader />
 			) : (
-				<DataTable columns={columns} data={tableData} />
+				<TransactionTable columns={columns} data={tableData} />
+			)}
+			{isDeleteModalOpen && (
+				<Modal onClose={closeDeleteModal} isOpen={isDeleteModalOpen}>
+					<p>Are you sure you want to delete {selectedRow?.name}'s account?</p>
+
+					<p className="text-sm text-primary-6">This can't be undone</p>
+					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
+						<Button
+							className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
+							onClick={closeDeleteModal}>
+							Cancel
+						</Button>
+						<Button
+							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
+							onClick={() => {
+								handleDelete();
+								closeDeleteModal();
+							}}>
+							Yes, Confirm
+						</Button>
+					</div>
+				</Modal>
 			)}
 		</>
 	);

@@ -394,24 +394,18 @@ const CustomerSalesTable = () => {
 			accessorKey: "date",
 			header: "Service Category",
 			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
+				const staff = row.getValue<string>("staff");
 
-				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
-				);
+				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
 		},
 		{
 			accessorKey: "date",
 			header: "Payment Type",
 			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
+				const staff = row.getValue<string>("staff") || "Transfer";
 
-				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
-				);
+				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
 		},
 		{
