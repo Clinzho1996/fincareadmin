@@ -5,7 +5,7 @@ import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Readers } from "@/config/columns";
+
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import axios from "axios";
 import { getSession } from "next-auth/react";
@@ -14,6 +14,18 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
+interface Readers {
+	id: string;
+	firstName: string;
+	lastName: string;
+	name: string;
+	email: string;
+	staff: string;
+	staffId: string;
+	role: string;
+	status: string;
+	profile_pic: string;
+}
 interface ApiResponse {
 	data: Readers;
 }
@@ -406,26 +418,17 @@ function StaffDetails() {
 								<p className="text-gray-800">Admin</p>
 							</div>
 							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Grade level
-								</h3>
-								<p className="text-gray-800">Grade Level 7</p>
+								<div>
+									<h3 className="text-sm font-medium text-gray-500 mb-1">
+										Destination account
+									</h3>
+									<p className="text-gray-800">098856783, GTBank</p>
+								</div>
 							</div>
 						</div>
 					</div>
 
 					{/* Account Details */}
-					<div>
-						<h2 className="text-lg font-medium mb-4 pb-2 border-b border-gray-200">
-							Account details
-						</h2>
-						<div>
-							<h3 className="text-sm font-medium text-gray-500 mb-1">
-								Destination account
-							</h3>
-							<p className="text-gray-800">098856783, GTBank</p>
-						</div>
-					</div>
 				</div>
 			</div>
 		</div>
