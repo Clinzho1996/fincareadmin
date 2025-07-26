@@ -8,13 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Readers } from "@/config/columns";
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import axios from "axios";
 import { getSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+interface Readers {
+	id: string;
+	firstName: string;
+	lastName: string;
+	email: string;
+	staffId: string;
+	role: string;
+}
 interface ApiResponse {
 	data: Readers;
 }
@@ -232,10 +239,10 @@ function RoleDetails() {
 								<Label
 									htmlFor="approve-payroll"
 									className="text-base font-medium">
-									Can approve payroll
+									Can approve loans
 								</Label>
 								<p className="text-sm text-gray-500">
-									Allows approval of payroll submissions
+									Allows approval of loan submissions
 								</p>
 							</div>
 							<Switch

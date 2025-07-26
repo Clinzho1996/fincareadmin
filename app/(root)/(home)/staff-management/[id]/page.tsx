@@ -359,9 +359,9 @@ function StaffDetails() {
 								className="w-15 h-15 rounded-full"
 							/>
 							<div>
-								<h1 className="text-2xl font-semibold">Johnbosco Femi Jude</h1>
+								<h1 className="text-2xl font-semibold">Confidence Clinton</h1>
 								<div className="flex items-center gap-4 mt-2">
-									<span className="text-gray-600">CW28373</span>
+									<span className="text-gray-600">FIN28373</span>
 									<span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
 										on leave
 									</span>
@@ -396,7 +396,7 @@ function StaffDetails() {
 								<h3 className="text-sm font-medium text-gray-500 mb-1">
 									Email
 								</h3>
-								<p className="text-gray-800">Johnbosco@gmail.com</p>
+								<p className="text-gray-800">devclinton@gmail.com</p>
 							</div>
 							<div>
 								<h3 className="text-sm font-medium text-gray-500 mb-1">
