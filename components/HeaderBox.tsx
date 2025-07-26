@@ -28,16 +28,6 @@ function HeaderBox({ title }: { title: string }) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [userData, setUserData] = useState<UserData | null>(null);
 
-	// Function to get the name initials from the user's name
-	const getNameInitials = ({ name }: { name: string }) => {
-		if (!name) return "OA";
-		const initials = name
-			.split(" ")
-			.map((word) => word.charAt(0))
-			.join("");
-		return initials.toUpperCase();
-	};
-
 	useEffect(() => {
 		const fetchStripeStatus = async () => {
 			try {
