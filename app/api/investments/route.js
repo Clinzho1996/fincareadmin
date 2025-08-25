@@ -16,10 +16,11 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Include all fields for user investments
+		// ✅ Include image field in results
 		const investments = await db
 			.collection("investments")
 			.find({ userId: authResult.userId })
+			.project({}) // project everything
 			.toArray();
 
 		return NextResponse.json({ investments });
@@ -42,21 +43,34 @@ export async function POST(request) {
 			);
 		}
 
-		const { name, amount, units, category, image } = await request.json();
+		const { amount, units, investmentId } = await request.json();
 
-		if (!name || !amount || !category) {
+		if (!amount || !investmentId) {
 			return NextResponse.json(
-				{ error: "Name, amount, and category are required" },
+				{ error: "Amount and investment ID are required" },
 				{ status: 400 }
 			);
 		}
 
 		const { db } = await connectToDatabase();
 
-		// Get user
+		// ✅ Convert string investmentId to ObjectId
+		const investmentPlan = await db
+			.collection("admin_investments")
+			.findOne({ _id: new ObjectId(investmentId) });
+
+		if (!investmentPlan) {
+			return NextResponse.json(
+				{ error: "Investment plan not found" },
+				{ status: 404 }
+			);
+		}
+
+		// Check if user has sufficient savings
 		const user = await db
 			.collection("users")
 			.findOne({ _id: new ObjectId(authResult.userId) });
+
 		if (!user || user.savingsBalance < amount) {
 			return NextResponse.json(
 				{ error: "Insufficient savings balance" },
@@ -64,24 +78,28 @@ export async function POST(request) {
 			);
 		}
 
-		// Create new investment
+		// Calculate units if not provided
+		const calculatedUnits = units || amount / investmentPlan.unitPrice;
+
 		const newInvestment = {
-			userId: authResult.userId,
-			name,
+			userId: authResult.userId, // keep as string for consistency
 			amount,
-			units: units || amount,
-			category,
+			units: calculatedUnits,
+			investmentId: investmentPlan._id.toString(),
+			investmentName: investmentPlan.name,
+			interestRate: investmentPlan.interestRate,
+			investmentType: investmentPlan.type,
 			currentValue: amount,
-			status: "active",
-			image: image || null,
 			startDate: new Date(),
+			maturityDate: investmentPlan.maturityDate,
+			image: investmentPlan.image || null, // ✅ include image
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
 
 		const result = await db.collection("investments").insertOne(newInvestment);
 
-		// Deduct from user's savings and update totalInvestment
+		// Deduct from savings and update investment total
 		await db.collection("users").updateOne(
 			{ _id: new ObjectId(authResult.userId) },
 			{
