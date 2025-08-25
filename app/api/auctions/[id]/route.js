@@ -118,6 +118,7 @@ export async function PUT(request, { params }) {
 			message: "Auction updated successfully",
 		});
 	} catch (error) {
+		console.error("PUT /api/auctions error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -180,6 +181,7 @@ export async function DELETE(request, { params }) {
 			message: "Auction deleted successfully",
 		});
 	} catch (error) {
+		console.error("DELETE /api/auctions error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -312,6 +314,8 @@ export async function POST(request, { params }) {
 				.collection("users")
 				.findOne({ _id: auction.userId });
 
+			console.log("AUCTION OWNER:", auctionOwner);
+
 			// In a real app, you would send a notification or email here
 			console.log(
 				`Auction "${auction.auctionName}" has received its first bid of ${amount}`
@@ -325,6 +329,7 @@ export async function POST(request, { params }) {
 			{ status: 201 }
 		);
 	} catch (error) {
+		console.error("POST /api/auction error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -488,6 +493,7 @@ export async function PATCH(request, { params }) {
 			});
 		}
 	} catch (error) {
+		console.error("PATCH /api/auctions error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

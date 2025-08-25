@@ -39,7 +39,7 @@ export async function POST(request) {
 		);
 
 		// Exclude password field
-		const { password: removedPassword, ...userWithoutPassword } = user;
+		const { password: _, ...userWithoutPassword } = user;
 
 		return NextResponse.json({
 			message: "Login successful",
