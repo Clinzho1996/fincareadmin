@@ -51,7 +51,7 @@ export async function POST(request) {
 		);
 
 		// Exclude password
-		const { password: _, ...userWithoutPassword } = user;
+		const { password: _password, ...userWithoutPassword } = user;
 
 		return NextResponse.json(
 			{
