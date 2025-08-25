@@ -38,7 +38,8 @@ export async function POST(request) {
 			{ expiresIn: "7d" }
 		);
 
-		const { password: _, ...userWithoutPassword } = user;
+		// Exclude password field
+		const { password: removedPassword, ...userWithoutPassword } = user;
 
 		return NextResponse.json({
 			message: "Login successful",
@@ -46,6 +47,7 @@ export async function POST(request) {
 			user: userWithoutPassword,
 		});
 	} catch (error) {
+		console.error("POST /api/auth/login error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

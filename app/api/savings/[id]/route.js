@@ -32,6 +32,7 @@ export async function GET(request, { params }) {
 
 		return NextResponse.json({ saving });
 	} catch (error) {
+		console.error("GET /api/savings error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -103,6 +104,7 @@ export async function PUT(request, { params }) {
 			message: "Saving updated successfully",
 		});
 	} catch (error) {
+		console.error("PUT /api/savings error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -166,6 +168,7 @@ export async function DELETE(request, { params }) {
 			message: "Saving deleted successfully",
 		});
 	} catch (error) {
+		console.error("DELETE /api/savings error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

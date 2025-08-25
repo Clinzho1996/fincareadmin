@@ -38,6 +38,7 @@ export async function GET(request, { params }) {
 
 		return NextResponse.json({ investment });
 	} catch (error) {
+		console.error("GET /api/auth/investment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -150,6 +151,7 @@ export async function PUT(request, { params }) {
 			message: "Investment updated successfully",
 		});
 	} catch (error) {
+		console.error("PUT /api/auth/investment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -209,6 +211,7 @@ export async function DELETE(request, { params }) {
 			message: "Investment deleted successfully",
 		});
 	} catch (error) {
+		console.error("DELETE /api/auth/investment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

@@ -21,6 +21,7 @@ export async function GET(request) {
 
 		return NextResponse.json({ investments });
 	} catch (error) {
+		console.error("GET /api/auth/investment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -112,6 +113,7 @@ export async function POST(request) {
 			{ status: 201 }
 		);
 	} catch (error) {
+		console.error("POST /api/auth/investment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

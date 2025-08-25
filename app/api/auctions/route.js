@@ -21,6 +21,7 @@ export async function GET(request) {
 
 		return NextResponse.json({ auctions });
 	} catch (error) {
+		console.error("GET /api/auctions error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -110,6 +111,7 @@ export async function POST(request) {
 			{ status: 201 }
 		);
 	} catch (error) {
+		console.error("POST /api/auctions error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

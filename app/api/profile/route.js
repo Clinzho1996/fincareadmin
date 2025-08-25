@@ -69,6 +69,7 @@ export async function GET(request) {
 			auctions,
 		});
 	} catch (error) {
+		console.error("GET /api/profile error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

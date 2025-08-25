@@ -95,7 +95,8 @@ export async function POST(request) {
       `,
 		});
 
-		const { password: _, ...userWithoutPassword } = newUser;
+		// Exclude password before returning
+		const { password: removedPassword, ...userWithoutPassword } = newUser;
 
 		return NextResponse.json(
 			{
@@ -106,6 +107,7 @@ export async function POST(request) {
 			{ status: 201 }
 		);
 	} catch (error) {
+		console.error("POST /api/auth/register error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

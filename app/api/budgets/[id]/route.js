@@ -32,6 +32,7 @@ export async function GET(request, { params }) {
 
 		return NextResponse.json({ budget });
 	} catch (error) {
+		console.error("GET /api/auth/budget-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -166,6 +167,7 @@ export async function PUT(request, { params }) {
 			message: "Budget updated successfully",
 		});
 	} catch (error) {
+		console.error("PUT /api/auth/budget-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -208,6 +210,7 @@ export async function DELETE(request, { params }) {
 			message: "Budget deleted successfully",
 		});
 	} catch (error) {
+		console.error("DELETE /api/auth/budget-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

@@ -52,6 +52,7 @@ export async function POST(request) {
 			message: "If the email exists, a password reset code has been sent",
 		});
 	} catch (error) {
+		console.error("POST /api/forgot-password error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

@@ -21,6 +21,7 @@ export async function GET(request) {
 
 		return NextResponse.json({ budgets });
 	} catch (error) {
+		console.error("GET /api/auth/budget error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -143,6 +144,7 @@ export async function POST(request) {
 			{ status: 201 }
 		);
 	} catch (error) {
+		console.error("POST /api/auth/budget error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

@@ -32,6 +32,7 @@ export async function GET(request, { params }) {
 
 		return NextResponse.json({ loan });
 	} catch (error) {
+		console.error("GET /api/auth/loan-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -138,6 +139,7 @@ export async function PUT(request, { params }) {
 			message: "Loan updated successfully",
 		});
 	} catch (error) {
+		console.error("PUT /api/auth/loan-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -188,6 +190,7 @@ export async function DELETE(request, { params }) {
 			message: "Loan deleted successfully",
 		});
 	} catch (error) {
+		console.error("DELETE /api/auth/loan-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

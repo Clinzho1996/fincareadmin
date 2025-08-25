@@ -21,6 +21,7 @@ export async function GET(request) {
 
 		return NextResponse.json({ loans });
 	} catch (error) {
+		console.error("GET /api/loans error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -70,11 +71,6 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Get user details
-		const user = await db
-			.collection("users")
-			.findOne({ _id: authResult.userId });
-
 		const newLoan = {
 			userId: authResult.userId,
 			loanAmount,
@@ -116,6 +112,7 @@ export async function POST(request) {
 			{ status: 201 }
 		);
 	} catch (error) {
+		console.error("POST /api/loans error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

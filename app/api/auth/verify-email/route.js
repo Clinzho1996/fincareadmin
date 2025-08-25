@@ -54,6 +54,7 @@ export async function POST(request) {
 			message: "Email verified successfully",
 		});
 	} catch (error) {
+		console.error("POST /api/auth/verify-email error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
