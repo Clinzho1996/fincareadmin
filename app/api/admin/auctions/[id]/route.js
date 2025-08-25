@@ -1,11 +1,11 @@
-import { authenticateAdmin } from "@/lib/middleware"; // Use admin auth
+import { authenticate } from "@/lib/middleware"; // Use admin auth
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(request, { params }) {
 	try {
-		const authResult = await authenticateAdmin(request);
+		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
@@ -34,7 +34,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
 	try {
-		const authResult = await authenticateAdmin(request);
+		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
@@ -66,7 +66,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
 	try {
-		const authResult = await authenticateAdmin(request);
+		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
