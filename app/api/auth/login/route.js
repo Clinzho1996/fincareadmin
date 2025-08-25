@@ -16,41 +16,55 @@ export async function POST(request) {
 		}
 
 		const { db } = await connectToDatabase();
-		const user = await db.collection("users").findOne({ email });
 
-		if (!user || !(await bcrypt.compare(password, user.password))) {
+		// Find user
+		const user = await db.collection("users").findOne({ email });
+		if (!user) {
 			return NextResponse.json(
-				{ error: "Invalid credentials" },
+				{ error: "Invalid email or password" },
 				{ status: 401 }
 			);
 		}
 
+		// Compare password
+		const isMatch = await bcrypt.compare(password, user.password);
+		if (!isMatch) {
+			return NextResponse.json(
+				{ error: "Invalid email or password" },
+				{ status: 401 }
+			);
+		}
+
+		// Optionally block unverified users
 		if (!user.isEmailVerified) {
 			return NextResponse.json(
-				{ error: "Email not verified" },
-				{ status: 401 }
+				{ error: "Please verify your email before logging in." },
+				{ status: 403 }
 			);
 		}
 
+		// Generate JWT
 		const token = jwt.sign(
 			{ userId: user._id, email: user.email },
 			process.env.JWT_SECRET,
 			{ expiresIn: "7d" }
 		);
 
-		// Remove password field before returning user
-		delete user.password;
+		// Exclude password
+		const { password: _, ...userWithoutPassword } = user;
 
-		return NextResponse.json({
-			status: "success",
-			message: "Login successful",
-			token,
-			user,
-		});
-	} catch (err) {
-		console.error("POST /api/auth/login error:", err);
 		return NextResponse.json(
-			{ status: "error", message: "Internal server error" },
+			{
+				message: "Login successful",
+				token,
+				user: userWithoutPassword,
+			},
+			{ status: 200 }
+		);
+	} catch (error) {
+		console.error("POST /api/auth/login error:", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
 			{ status: 500 }
 		);
 	}
