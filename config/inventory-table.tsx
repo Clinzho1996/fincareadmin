@@ -41,6 +41,7 @@ import {
 	ChevronsLeft,
 	ChevronsRight,
 } from "lucide-react";
+import { getSession } from "next-auth/react";
 import React, { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
@@ -226,26 +227,59 @@ export function InvestmentDataTable() {
 		}
 	};
 
-	const handleAddInvestment = () => {
+	const handleAddInvestment = async () => {
 		if (!name || !amount || !deadline || !category) {
 			toast.error("Please fill all required fields");
 			return;
 		}
 
-		const newInvestment: Investment = {
-			id: (tableData.length + 1).toString(),
-			name,
-			image: previewImage || "/images/default-investment.jpg",
-			amount: Number(amount),
-			currentBid: currentBid ? Number(currentBid) : 0,
-			deadline,
-			status: "active",
-			category,
-		};
+		try {
+			const session = await getSession();
+			const accessToken = session?.accessToken;
 
-		setTableData([...tableData, newInvestment]);
-		toast.success("Investment added successfully!");
-		closeModal();
+			if (!accessToken) {
+				console.error("No access token found.");
+				return;
+			}
+
+			const res = await fetch("/api/investments", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${accessToken}`,
+				},
+				body: JSON.stringify({
+					amount: Number(amount),
+					units: currentBid ? Number(currentBid) : undefined,
+				}),
+			});
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				toast.error(data.error || "Failed to create investment");
+				return;
+			}
+
+			// Append returned investment to UI
+			const newInvestment: Investment = {
+				id: data.investmentId, // from API response
+				name,
+				image: previewImage || "/images/default-investment.jpg",
+				amount: Number(amount),
+				currentBid: currentBid ? Number(currentBid) : 0,
+				deadline,
+				status: "active",
+				category,
+			};
+
+			setTableData([...tableData, newInvestment]);
+			toast.success("Investment created successfully!");
+			closeModal();
+		} catch (error) {
+			console.error("Error creating investment:", error);
+			toast.error("Something went wrong. Try again.");
+		}
 	};
 
 	const bulkDeleteInvestments = () => {
