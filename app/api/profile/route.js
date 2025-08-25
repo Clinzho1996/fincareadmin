@@ -1,6 +1,7 @@
 // app/api/profile/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
@@ -14,18 +15,23 @@ export async function GET(request) {
 		}
 
 		const { db } = await connectToDatabase();
+
+		// Convert userId from string -> ObjectId
 		const user = await db
 			.collection("users")
 			.findOne(
-				{ _id: authResult.userId },
+				{ _id: new ObjectId(authResult.userId) },
 				{ projection: { password: 0, otp: 0 } }
 			);
 
 		if (!user) {
-			return NextResponse.json({ error: "User not found" }, { status: 404 });
+			return NextResponse.json(
+				{ error: "User not found or not verified" },
+				{ status: 404 }
+			);
 		}
 
-		// Get user's savings, investments, loans, and auctions
+		// Get related data
 		const savings = await db
 			.collection("savings")
 			.find({ userId: authResult.userId })
@@ -45,17 +51,18 @@ export async function GET(request) {
 
 		// Calculate totals
 		const totalSavings = savings.reduce(
-			(sum, saving) => sum + saving.currentBalance,
+			(sum, s) => sum + (s.currentBalance || 0),
 			0
 		);
 		const totalInvestment = investments.reduce(
-			(sum, investment) => sum + investment.amount,
+			(sum, i) => sum + (i.amount || 0),
 			0
 		);
-		const totalLoans = loans.reduce((sum, loan) => sum + loan.amount, 0);
+		const totalLoans = loans.reduce((sum, l) => sum + (l.amount || 0), 0);
 		const totalAuctions = auctions.length;
 
 		return NextResponse.json({
+			status: "success",
 			user: {
 				...user,
 				totalSavings,
