@@ -1,6 +1,7 @@
 // app/api/withdrawals/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // GET - Get all withdrawals for user
