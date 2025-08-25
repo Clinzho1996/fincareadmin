@@ -1,9 +1,3 @@
-// app/api/profile/route.js
-import { authenticate } from "@/lib/middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
-import { NextResponse } from "next/server";
-
 export async function GET(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -16,13 +10,11 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Convert userId from string -> ObjectId
-		const user = await db
-			.collection("users")
-			.findOne(
-				{ _id: new ObjectId(authResult.userId) },
-				{ projection: { password: 0, otp: 0 } }
-			);
+		// Remove the ObjectId conversion since _id is already stored as ObjectId
+		const user = await db.collection("users").findOne(
+			{ _id: authResult.userId }, // Use the userId directly
+			{ projection: { password: 0, otp: 0 } }
+		);
 
 		if (!user) {
 			return NextResponse.json(
@@ -31,7 +23,7 @@ export async function GET(request) {
 			);
 		}
 
-		// Get related data
+		// Get related data - make sure to use the same format as stored in other collections
 		const savings = await db
 			.collection("savings")
 			.find({ userId: authResult.userId })
