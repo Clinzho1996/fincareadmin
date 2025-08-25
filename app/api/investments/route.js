@@ -1,6 +1,7 @@
 // app/api/investments/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
@@ -14,14 +15,17 @@ export async function GET(request) {
 		}
 
 		const { db } = await connectToDatabase();
+
+		// ✅ Include image field in results
 		const investments = await db
 			.collection("investments")
 			.find({ userId: authResult.userId })
+			.project({}) // project everything
 			.toArray();
 
 		return NextResponse.json({ investments });
 	} catch (error) {
-		console.error("GET /api/auth/investment error:", error);
+		console.error("GET /api/investments error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
@@ -50,10 +54,10 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Get investment details from admin-created investments
+		// ✅ Convert string investmentId to ObjectId
 		const investmentPlan = await db
 			.collection("admin_investments")
-			.findOne({ _id: investmentId });
+			.findOne({ _id: new ObjectId(investmentId) });
 
 		if (!investmentPlan) {
 			return NextResponse.json(
@@ -67,7 +71,7 @@ export async function POST(request) {
 			.collection("users")
 			.findOne({ _id: new ObjectId(authResult.userId) });
 
-		if (user.savingsBalance < amount) {
+		if (!user || user.savingsBalance < amount) {
 			return NextResponse.json(
 				{ error: "Insufficient savings balance" },
 				{ status: 400 }
@@ -78,16 +82,17 @@ export async function POST(request) {
 		const calculatedUnits = units || amount / investmentPlan.unitPrice;
 
 		const newInvestment = {
-			userId: authResult.userId,
+			userId: authResult.userId, // keep as string for consistency
 			amount,
 			units: calculatedUnits,
-			investmentId,
+			investmentId: investmentPlan._id.toString(),
 			investmentName: investmentPlan.name,
 			interestRate: investmentPlan.interestRate,
 			investmentType: investmentPlan.type,
 			currentValue: amount,
 			startDate: new Date(),
 			maturityDate: investmentPlan.maturityDate,
+			image: investmentPlan.image || null, // ✅ include image
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
@@ -96,7 +101,7 @@ export async function POST(request) {
 
 		// Deduct from savings and update investment total
 		await db.collection("users").updateOne(
-			{ _id: authResult.userId },
+			{ _id: new ObjectId(authResult.userId) },
 			{
 				$inc: {
 					savingsBalance: -amount,
@@ -109,11 +114,12 @@ export async function POST(request) {
 			{
 				message: "Investment created successfully",
 				investmentId: result.insertedId,
+				investment: newInvestment,
 			},
 			{ status: 201 }
 		);
 	} catch (error) {
-		console.error("POST /api/auth/investment error:", error);
+		console.error("POST /api/investments error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
