@@ -20,33 +20,63 @@ export async function GET() {
 }
 
 // POST: Create a new auction
+// app/api/admin/auction-investment/route.js
+
 export async function POST(request) {
 	try {
-		const authResult = await authenticateAdmin(request);
-		if (authResult.error) {
-			return NextResponse.json(
-				{ error: authResult.error },
-				{ status: authResult.status }
-			);
-		}
+		const {
+			name,
+			amount,
+			unitPrice,
+			interestRate,
+			maturityDate,
+			image,
+			auctionName,
+			description,
+			reservePrice,
+			duration,
+		} = await request.json();
 
-		const { investmentId, auctionName, description, reservePrice, duration } =
-			await request.json();
-
-		if (!investmentId || !auctionName || !reservePrice || !duration) {
+		if (
+			!name ||
+			!amount ||
+			!unitPrice ||
+			!interestRate ||
+			!maturityDate ||
+			!auctionName ||
+			!reservePrice ||
+			!duration
+		) {
 			return NextResponse.json(
-				{
-					error:
-						"Investment ID, auction name, reserve price, and duration are required",
-				},
+				{ error: "All fields are required" },
 				{ status: 400 }
 			);
 		}
 
 		const { db } = await connectToDatabase();
 
+		// 1️⃣ Create investment
+		const newInvestment = {
+			name,
+			amount,
+			unitPrice,
+			interestRate,
+			maturityDate: new Date(maturityDate),
+			image: image || null,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
+
+		const investmentResult = await db
+			.collection("admin_investments")
+			.insertOne(newInvestment);
+
+		// 2️⃣ Create auction for this investment
+		const investmentId = investmentResult.insertedId;
+
 		const newAuction = {
-			investmentId: new ObjectId(investmentId),
+			investmentId,
+			investmentName: name,
 			auctionName,
 			description: description || "",
 			reservePrice,
@@ -59,17 +89,18 @@ export async function POST(request) {
 			updatedAt: new Date(),
 		};
 
-		const result = await db.collection("auctions").insertOne(newAuction);
+		const auctionResult = await db.collection("auctions").insertOne(newAuction);
 
 		return NextResponse.json(
 			{
-				message: "Auction created successfully",
-				auctionId: result.insertedId,
+				message: "Investment and auction created successfully",
+				investmentId,
+				auctionId: auctionResult.insertedId,
 			},
 			{ status: 201 }
 		);
 	} catch (error) {
-		console.error("POST /api/admin/auctions error:", error);
+		console.error("POST /api/admin/auction-investment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
