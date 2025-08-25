@@ -79,35 +79,6 @@ export async function POST(request) {
 		const totalIncome =
 			activeIncome + (passiveIncome || 0) + (otherIncome || 0);
 
-		// Calculate category totals
-		const needsTotal = needs
-			? Object.values(needs).reduce((sum, amount) => sum + amount, 0)
-			: 0;
-		const wantsTotal = wants
-			? Object.values(wants).reduce((sum, amount) => sum + amount, 0)
-			: 0;
-		const investmentsTotal = investments
-			? Object.values(investments).reduce((sum, amount) => sum + amount, 0)
-			: 0;
-
-		// Validate that category totals match the percentage allocations
-		const expectedNeeds = totalIncome * (needsPercentage / 100);
-		const expectedWants = totalIncome * (wantsPercentage / 100);
-		const expectedInvestments = totalIncome * (investmentsPercentage / 100);
-
-		if (
-			Math.abs(needsTotal - expectedNeeds) > 1 ||
-			Math.abs(wantsTotal - expectedWants) > 1 ||
-			Math.abs(investmentsTotal - expectedInvestments) > 1
-		) {
-			return NextResponse.json(
-				{
-					error: "Category allocations do not match the specified percentages",
-				},
-				{ status: 400 }
-			);
-		}
-
 		const { db } = await connectToDatabase();
 
 		const newBudget = {
