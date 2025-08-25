@@ -96,7 +96,8 @@ export async function POST(request) {
 		});
 
 		// Exclude password before returning
-		const { password: _, ...userWithoutPassword } = newUser;
+		const userWithoutPassword = { ...newUser };
+		delete userWithoutPassword.password;
 
 		return NextResponse.json(
 			{

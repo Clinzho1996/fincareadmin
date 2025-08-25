@@ -64,6 +64,7 @@ export async function GET(request, { params }) {
 
 		return NextResponse.json({ bids });
 	} catch (error) {
+		console.error("GET /api/bid-id error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

@@ -45,6 +45,7 @@ export async function GET(request, { params }) {
 			bids,
 		});
 	} catch (error) {
+		console.error("GET /api/auction error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
