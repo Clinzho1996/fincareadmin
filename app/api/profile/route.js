@@ -15,10 +15,12 @@ export async function GET(request) {
 		const { db } = await connectToDatabase();
 
 		// Remove the ObjectId conversion since _id is already stored as ObjectId
-		const user = await db.collection("users").findOne(
-			{ _id: authResult.userId }, // Use the userId directly
-			{ projection: { password: 0, otp: 0 } }
-		);
+		const user = await db
+			.collection("users")
+			.findOne(
+				{ _id: new ObjectId(authResult.userId) },
+				{ projection: { password: 0, otp: 0 } }
+			);
 
 		if (!user) {
 			return NextResponse.json(
