@@ -1,6 +1,7 @@
 // app/api/auth/login/route.js
 import { connectToDatabase } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
@@ -35,14 +36,23 @@ export async function POST(req) {
 			);
 		}
 
+		// generate JWT
+		const token = jwt.sign(
+			{ userId: user._id, email: user.email },
+			process.env.JWT_SECRET,
+			{ expiresIn: "7d" }
+		);
+
 		// success
 		return NextResponse.json({
 			status: "success",
 			message: "Login successful",
+			token,
 			user: {
-				id: user._id,
+				_id: user._id,
 				email: user.email,
-				name: user.name,
+				firstName: user.firstName,
+				lastName: user.lastName,
 			},
 		});
 	} catch (error) {
