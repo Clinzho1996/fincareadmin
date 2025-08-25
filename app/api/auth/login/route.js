@@ -1,68 +1,54 @@
-// ./app/api/auth/login/route.js
-import clientPromise from "@/lib/mongodb";
+// app/api/auth/login/route.js
+import { connectToDatabase } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
-export async function POST(request) {
+export async function POST(req) {
 	try {
-		const { email, password } = await request.json();
+		const { email, password } = await req.json();
 
 		if (!email || !password) {
 			return NextResponse.json(
-				{ error: "Email and password are required" },
+				{ status: "error", error: "Email and password are required" },
 				{ status: 400 }
 			);
 		}
 
-		const client = await clientPromise;
-		const db = client.db("fincare_db");
+		// connect to db
+		const { db } = await connectToDatabase();
 
-		// Find user by email (without returning password)
-		const user = await db.collection("users").findOne(
-			{ email },
-			{ projection: { password: 1 } } // only fetch password for comparison
-		);
-
+		// check if user exists
+		const user = await db.collection("users").findOne({ email });
 		if (!user) {
 			return NextResponse.json(
-				{ error: "Invalid credentials" },
+				{ status: "error", error: "Invalid credentials" },
 				{ status: 401 }
 			);
 		}
 
-		// Compare entered password with hashed password
-		const isPasswordValid = await bcrypt.compare(password, user.password);
-		if (!isPasswordValid) {
+		// verify password
+		const isValid = await bcrypt.compare(password, user.password);
+		if (!isValid) {
 			return NextResponse.json(
-				{ error: "Invalid credentials" },
+				{ status: "error", error: "Invalid credentials" },
 				{ status: 401 }
 			);
 		}
 
-		// Fetch user data again without password for response
-		const userData = await db.collection("users").findOne(
-			{ email },
-			{ projection: { password: 0 } } // exclude password
-		);
-
-		// Create JWT token
-		const token = jwt.sign(
-			{ userId: userData._id, email: userData.email },
-			process.env.JWT_SECRET,
-			{ expiresIn: "1h" }
-		);
-
+		// success
 		return NextResponse.json({
 			status: "success",
 			message: "Login successful",
-			token,
-			user: userData,
+			user: {
+				id: user._id,
+				email: user.email,
+				name: user.name,
+			},
 		});
 	} catch (error) {
 		console.error("Login error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ status: "error", error: "Internal server error" },
 			{ status: 500 }
 		);
 	}
