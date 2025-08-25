@@ -97,7 +97,7 @@ export async function POST(request) {
 		// Check if user has sufficient savings balance
 		const user = await db
 			.collection("users")
-			.findOne({ _id: authResult.userId });
+			.findOne({ _id: new ObjectId(authResult.userId) });
 
 		if (user.savingsBalance < amount) {
 			return NextResponse.json(

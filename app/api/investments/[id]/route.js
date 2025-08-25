@@ -101,7 +101,7 @@ export async function PUT(request, { params }) {
 				// Adding to investment - check if user has enough savings
 				const user = await db
 					.collection("users")
-					.findOne({ _id: authResult.userId });
+					.findOne({ _id: new ObjectId(authResult.userId) });
 
 				if (user.savingsBalance < amountDifference) {
 					return NextResponse.json(
