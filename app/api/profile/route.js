@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { authenticate } from "@/lib/middleware";
 
 export async function GET(request) {
