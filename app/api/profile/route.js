@@ -1,6 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
+import { connectToDatabase } from "@/lib/mongodb"; // Missing import
+import { ObjectId } from "mongodb";
+import { NextResponse } from "next/server"; // Missing import
 
 export async function GET(request) {
 	try {
@@ -14,7 +17,7 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Remove the ObjectId conversion since _id is already stored as ObjectId
+		// Convert string userId to ObjectId for MongoDB query
 		const user = await db
 			.collection("users")
 			.findOne(
@@ -29,22 +32,23 @@ export async function GET(request) {
 			);
 		}
 
-		// Get related data - make sure to use the same format as stored in other collections
+		// Check what format userId is stored in other collections
+		// If they store userId as ObjectId, convert here too:
 		const savings = await db
 			.collection("savings")
-			.find({ userId: authResult.userId })
+			.find({ userId: new ObjectId(authResult.userId) })
 			.toArray();
 		const investments = await db
 			.collection("investments")
-			.find({ userId: authResult.userId })
+			.find({ userId: new ObjectId(authResult.userId) })
 			.toArray();
 		const loans = await db
 			.collection("loans")
-			.find({ userId: authResult.userId })
+			.find({ userId: new ObjectId(authResult.userId) })
 			.toArray();
 		const auctions = await db
 			.collection("auctions")
-			.find({ userId: authResult.userId })
+			.find({ userId: new ObjectId(authResult.userId) })
 			.toArray();
 
 		// Calculate totals
