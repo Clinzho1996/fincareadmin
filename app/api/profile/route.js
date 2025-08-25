@@ -1,3 +1,5 @@
+import { authenticate } from "@/lib/middleware";
+
 export async function GET(request) {
 	try {
 		const authResult = await authenticate(request);
