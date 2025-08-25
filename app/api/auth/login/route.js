@@ -42,6 +42,7 @@ export async function POST(request) {
 		delete user.password;
 
 		return NextResponse.json({
+			status: "success",
 			message: "Login successful",
 			token,
 			user,
@@ -49,7 +50,7 @@ export async function POST(request) {
 	} catch (err) {
 		console.error("POST /api/auth/login error:", err);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ status: "error", message: "Internal server error" },
 			{ status: 500 }
 		);
 	}
