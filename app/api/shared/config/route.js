@@ -1,4 +1,7 @@
 // app/api/shared/config/route.js
+
+export const dynamic = "force-dynamic";
+
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
