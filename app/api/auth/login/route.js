@@ -1,5 +1,5 @@
-// app/api/auth/login/route.js
-import { connectToDatabase } from "@/lib/mongodb";
+// ./app/api/auth/login/route.js
+import clientPromise from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
@@ -15,54 +15,52 @@ export async function POST(request) {
 			);
 		}
 
-		const { db } = await connectToDatabase();
+		const client = await clientPromise;
+		const db = client.db("fincare_db");
 
-		// Find user
-		const user = await db.collection("users").findOne({ email });
+		// Find user by email (without returning password)
+		const user = await db.collection("users").findOne(
+			{ email },
+			{ projection: { password: 1 } } // only fetch password for comparison
+		);
+
 		if (!user) {
 			return NextResponse.json(
-				{ error: "Invalid email or password" },
+				{ error: "Invalid credentials" },
 				{ status: 401 }
 			);
 		}
 
-		// Compare password
-		const isMatch = await bcrypt.compare(password, user.password);
-		if (!isMatch) {
+		// Compare entered password with hashed password
+		const isPasswordValid = await bcrypt.compare(password, user.password);
+		if (!isPasswordValid) {
 			return NextResponse.json(
-				{ error: "Invalid email or password" },
+				{ error: "Invalid credentials" },
 				{ status: 401 }
 			);
 		}
 
-		// Optionally block unverified users
-		if (!user.isEmailVerified) {
-			return NextResponse.json(
-				{ error: "Please verify your email before logging in." },
-				{ status: 403 }
-			);
-		}
+		// Fetch user data again without password for response
+		const userData = await db.collection("users").findOne(
+			{ email },
+			{ projection: { password: 0 } } // exclude password
+		);
 
-		// Generate JWT
+		// Create JWT token
 		const token = jwt.sign(
-			{ userId: user._id, email: user.email },
+			{ userId: userData._id, email: userData.email },
 			process.env.JWT_SECRET,
-			{ expiresIn: "7d" }
+			{ expiresIn: "1h" }
 		);
 
-		// Exclude password
-		const { password: _password, ...userWithoutPassword } = user;
-
-		return NextResponse.json(
-			{
-				message: "Login successful",
-				token,
-				user: userWithoutPassword,
-			},
-			{ status: 200 }
-		);
+		return NextResponse.json({
+			status: "success",
+			message: "Login successful",
+			token,
+			user: userData,
+		});
 	} catch (error) {
-		console.error("POST /api/auth/login error:", error);
+		console.error("Login error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
