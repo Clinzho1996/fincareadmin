@@ -15,11 +15,18 @@ export async function POST(req) {
 			);
 		}
 
-		// connect to db
-		const { db } = await connectToDatabase();
+		// Check if JWT_SECRET is set
+		if (!process.env.JWT_SECRET) {
+			console.error("JWT_SECRET is not defined in login route");
+			return NextResponse.json(
+				{ status: "error", error: "Server configuration error" },
+				{ status: 500 }
+			);
+		}
 
-		// check if user exists
+		const { db } = await connectToDatabase();
 		const user = await db.collection("users").findOne({ email });
+
 		if (!user) {
 			return NextResponse.json(
 				{ status: "error", error: "Invalid credentials" },
@@ -27,7 +34,6 @@ export async function POST(req) {
 			);
 		}
 
-		// verify password
 		const isValid = await bcrypt.compare(password, user.password);
 		if (!isValid) {
 			return NextResponse.json(
@@ -36,20 +42,24 @@ export async function POST(req) {
 			);
 		}
 
-		// generate JWT
+		// Generate JWT with proper payload
 		const token = jwt.sign(
-			{ userId: user._id.toString(), email: user.email },
+			{
+				userId: user._id.toString(), // Ensure this is a string
+				email: user.email,
+			},
 			process.env.JWT_SECRET,
 			{ expiresIn: "7d" }
 		);
 
-		// success
+		console.log("Login successful, token generated for user:", user.email);
+
 		return NextResponse.json({
 			status: "success",
 			message: "Login successful",
 			token,
 			user: {
-				_id: user._id,
+				_id: user._id.toString(),
 				email: user.email,
 				firstName: user.firstName,
 				lastName: user.lastName,
