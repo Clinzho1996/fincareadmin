@@ -4,7 +4,7 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // GET all admin investments
-export async function GET(request) {
+export async function GET() {
 	try {
 		const { db } = await connectToDatabase();
 		const investments = await db
