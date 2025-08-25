@@ -191,18 +191,30 @@ const Sidebar = () => {
 									isSettingsActive,
 							}
 						)}>
-						<div className="flex gap-2 items-center justify-start rounded-[8px] my-0">
-							<Image
-								src="/icons/settings.svg"
-								alt="settings"
-								width={20}
-								height={20}
-								className="w-[20px] h-[20px] object-contain flex"
-							/>
-							<p className="text-sm font-normal font-inter  text-white">
-								System Settings
-							</p>
-						</div>
+						{!isCollapsed ? (
+							<div className="flex gap-2 items-center justify-start rounded-[8px] my-0">
+								<Image
+									src="/icons/settings.svg"
+									alt="settings"
+									width={20}
+									height={20}
+									className="w-[20px] h-[20px] object-contain flex"
+								/>
+								<p className="text-sm font-normal font-inter  text-white">
+									System Settings
+								</p>
+							</div>
+						) : (
+							<div className="flex gap-2 items-center justify-start rounded-[8px] my-0">
+								<Image
+									src="/icons/settings.svg"
+									alt="settings"
+									width={20}
+									height={20}
+									className="w-[20px] h-[20px] object-contain flex"
+								/>
+							</div>
+						)}
 					</Link>
 				</div>
 				{session?.user && (
