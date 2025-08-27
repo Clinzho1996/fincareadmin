@@ -1,5 +1,5 @@
 // app/api/admin/auctions/route.js
-import { authenticateAdmin } from "@/lib/middleware"; // separate admin auth middleware
+import { authenticate } from "@/lib/middleware"; // separate admin auth middleware
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
@@ -111,7 +111,7 @@ export async function POST(request) {
 // PUT: Update an auction by ID
 export async function PUT(request) {
 	try {
-		const authResult = await authenticateAdmin(request);
+		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
@@ -151,7 +151,7 @@ export async function PUT(request) {
 // DELETE: Delete an auction by ID
 export async function DELETE(request) {
 	try {
-		const authResult = await authenticateAdmin(request);
+		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
