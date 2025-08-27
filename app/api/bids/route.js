@@ -42,7 +42,7 @@ export async function GET(request) {
 						amount: 1,
 						status: 1,
 						createdAt: 1,
-						auctionId: "$auction._id", // ✅ include auction id
+						auctionId: { $toString: "$auctionId" }, // use original reference
 						"auction.auctionName": 1,
 						"auction.reservePrice": 1,
 						"auction.status": 1,
