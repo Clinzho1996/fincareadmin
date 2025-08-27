@@ -1,10 +1,15 @@
-// app/api/loans/repayment/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
-import { mkdir, writeFile } from "fs/promises";
+import cloudinary from "cloudinary";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
-import path from "path";
+
+// Configure Cloudinary
+cloudinary.v2.config({
+	cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+	api_key: process.env.CLOUDINARY_API_KEY,
+	api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(request) {
 	try {
@@ -18,41 +23,22 @@ export async function POST(request) {
 
 		const formData = await request.formData();
 		const loanId = formData.get("loanId");
-		const proofFile = formData.get("proof");
+		const proofFile = formData.get("proof"); // Blob
 
-		// Validate inputs
 		if (!loanId) {
 			return NextResponse.json(
 				{ error: "Loan ID is required" },
 				{ status: 400 }
 			);
 		}
-
-		if (!proofFile || !proofFile.name || !proofFile.type) {
+		if (!proofFile) {
 			return NextResponse.json(
-				{ error: "Valid proof file is required" },
-				{ status: 400 }
-			);
-		}
-
-		// Validate file type
-		const allowedMimeTypes = [
-			"image/jpeg",
-			"image/jpg",
-			"image/png",
-			"image/gif",
-			"image/webp",
-		];
-		if (!allowedMimeTypes.includes(proofFile.type)) {
-			return NextResponse.json(
-				{ error: "Only image files are allowed (JPEG, PNG, GIF, WEBP)" },
+				{ error: "Proof image is required" },
 				{ status: 400 }
 			);
 		}
 
 		const { db } = await connectToDatabase();
-
-		// Check if loan exists and belongs to user
 		const loan = await db.collection("loans").findOne({
 			_id: new ObjectId(loanId),
 			userId: authResult.userId,
@@ -61,8 +47,6 @@ export async function POST(request) {
 		if (!loan) {
 			return NextResponse.json({ error: "Loan not found" }, { status: 404 });
 		}
-
-		// Check if loan is approved
 		if (loan.status !== "approved") {
 			return NextResponse.json(
 				{ error: "Only approved loans can be repaid" },
@@ -70,71 +54,50 @@ export async function POST(request) {
 			);
 		}
 
-		// Generate unique filename
-		const timestamp = Date.now();
-		const fileExtension = proofFile.name.split(".").pop();
-		const fileName = `repayment_${loanId}_${timestamp}.${fileExtension}`;
+		// Convert Blob → Buffer
+		const buffer = Buffer.from(await proofFile.arrayBuffer());
 
-		// Create uploads directory if it doesn't exist
-		const uploadsDir = path.join(
-			process.cwd(),
-			"public",
-			"uploads",
-			"repayments"
-		);
-		try {
-			await mkdir(uploadsDir, { recursive: true });
-		} catch (error) {
-			console.error("Error creating uploads directory:", error);
-		}
-
-		// Convert file to buffer and save
-		const bytes = await proofFile.arrayBuffer();
-		const buffer = Buffer.from(bytes);
-		const filePath = path.join(uploadsDir, fileName);
-
-		try {
-			await writeFile(filePath, buffer);
-		} catch (error) {
-			console.error("Error saving file:", error);
-			return NextResponse.json(
-				{ error: "Failed to save proof file" },
-				{ status: 500 }
+		// Upload to Cloudinary
+		const uploadResponse = await new Promise((resolve, reject) => {
+			const stream = cloudinary.v2.uploader.upload_stream(
+				{
+					folder: "repayments",
+					public_id: `loan_${loanId}_${Date.now()}`,
+				},
+				(error, result) => {
+					if (error) reject(error);
+					else resolve(result);
+				}
 			);
-		}
+			stream.end(buffer);
+		});
 
 		// Create repayment record
 		const repayment = {
 			loanId: new ObjectId(loanId),
 			userId: authResult.userId,
-			amount: loan.loanAmount, // Or calculate based on repayment schedule
-			proofImage: `/uploads/repayments/${fileName}`,
+			amount: loan.loanAmount,
+			proofImage: uploadResponse.secure_url,
 			status: "pending_review",
 			submittedAt: new Date(),
-			reviewedAt: null,
-			reviewedBy: null,
-			reviewNotes: null,
 		};
 
 		const result = await db.collection("loan_repayments").insertOne(repayment);
 
-		// Update loan status to indicate repayment is pending
-		await db.collection("loans").updateOne(
-			{ _id: new ObjectId(loanId) },
-			{
-				$set: {
-					repaymentStatus: "pending",
-					updatedAt: new Date(),
-				},
-			}
-		);
+		// Update loan status
+		await db
+			.collection("loans")
+			.updateOne(
+				{ _id: new ObjectId(loanId) },
+				{ $set: { repaymentStatus: "pending", updatedAt: new Date() } }
+			);
 
 		return NextResponse.json(
 			{
 				message:
 					"Repayment submitted successfully. Waiting for admin approval.",
 				repaymentId: result.insertedId,
-				proofUrl: `/uploads/repayments/${fileName}`,
+				proofUrl: uploadResponse.secure_url,
 			},
 			{ status: 201 }
 		);
