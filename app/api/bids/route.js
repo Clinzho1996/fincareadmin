@@ -1,6 +1,6 @@
-// app/api/bids/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // GET - Get all bids made by the current user
@@ -15,12 +15,12 @@ export async function GET(request) {
 		}
 
 		const { searchParams } = new URL(request.url);
-		const status = searchParams.get("status"); // "active", "won", "outbid"
+		const status = searchParams.get("status");
 
 		const { db } = await connectToDatabase();
 
-		// Build query
-		const query = { userId: authResult.userId };
+		// Ensure userId is ObjectId
+		const query = { userId: new ObjectId(authResult.userId) };
 		if (status) query.status = status;
 
 		const bids = await db
@@ -36,6 +36,7 @@ export async function GET(request) {
 						as: "auction",
 					},
 				},
+				{ $unwind: "$auction" }, // ✅ flatten auction array
 				{
 					$project: {
 						amount: 1,
