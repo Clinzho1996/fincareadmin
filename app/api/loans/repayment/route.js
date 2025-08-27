@@ -12,6 +12,8 @@ cloudinary.v2.config({
 	api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+export const runtime = "nodejs";
+
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -22,7 +24,6 @@ export async function POST(request) {
 			);
 		}
 
-		// Get the form data
 		const formData = await request.formData();
 		const loanId = formData.get("loanId");
 		const proofFile = formData.get("proof");
@@ -34,7 +35,7 @@ export async function POST(request) {
 			);
 		}
 
-		if (!proofFile || typeof proofFile === "string") {
+		if (!(proofFile instanceof File)) {
 			return NextResponse.json(
 				{ error: "Valid proof file is required" },
 				{ status: 400 }
@@ -43,7 +44,6 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Check if loan exists and belongs to user
 		const loan = await db.collection("loans").findOne({
 			_id: new ObjectId(loanId),
 			userId: authResult.userId,
@@ -60,7 +60,7 @@ export async function POST(request) {
 			);
 		}
 
-		// Convert the file to buffer
+		// Convert proof file to buffer
 		const bytes = await proofFile.arrayBuffer();
 		const buffer = Buffer.from(bytes);
 
@@ -82,11 +82,10 @@ export async function POST(request) {
 				}
 			);
 
-			// Write the buffer to the upload stream
 			uploadStream.end(buffer);
 		});
 
-		// Create repayment record
+		// Save repayment record
 		const repayment = {
 			loanId: new ObjectId(loanId),
 			userId: authResult.userId,
@@ -99,7 +98,7 @@ export async function POST(request) {
 
 		const result = await db.collection("loan_repayments").insertOne(repayment);
 
-		// Update loan status
+		// Update loan
 		await db.collection("loans").updateOne(
 			{ _id: new ObjectId(loanId) },
 			{
