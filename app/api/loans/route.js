@@ -1,6 +1,7 @@
 // app/api/loans/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
@@ -73,9 +74,9 @@ export async function POST(request) {
 
 		const newLoan = {
 			userId: authResult.userId,
-			loanAmount,
+			loanAmount: Number(loanAmount),
 			purpose,
-			duration,
+			duration: Number(duration),
 			debitFromSavings: debitFromSavings || false,
 			borrowerDetails: {
 				fullName,
@@ -84,7 +85,7 @@ export async function POST(request) {
 				gender,
 			},
 			guarantorDetails: {
-				coverage: guarantorCoverage || 0,
+				coverage: Number(guarantorCoverage) || 0,
 				profession: guarantorProfession || "",
 			},
 			governmentId: governmentId || "",
@@ -96,13 +97,16 @@ export async function POST(request) {
 
 		const result = await db.collection("loans").insertOne(newLoan);
 
-		// Update user's total loans
-		await db
-			.collection("users")
-			.updateOne(
-				{ _id: authResult.userId },
-				{ $inc: { totalLoans: loanAmount } }
-			);
+		// Only update totalLoans if the loan is approved
+		// For pending loans, we'll update when status changes to approved
+		if (newLoan.status === "approved") {
+			await db
+				.collection("users")
+				.updateOne(
+					{ _id: new ObjectId(authResult.userId) },
+					{ $inc: { totalLoans: Number(loanAmount) } }
+				);
+		}
 
 		return NextResponse.json(
 			{
@@ -113,6 +117,78 @@ export async function POST(request) {
 		);
 	} catch (error) {
 		console.error("POST /api/loans error:", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 }
+		);
+	}
+}
+
+// PATCH endpoint to update loan status
+export async function PATCH(request) {
+	try {
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
+		}
+
+		const { loanId, status } = await request.json();
+
+		if (!loanId || !status) {
+			return NextResponse.json(
+				{ error: "Loan ID and status are required" },
+				{ status: 400 }
+			);
+		}
+
+		const { db } = await connectToDatabase();
+
+		// Find the loan
+		const loan = await db.collection("loans").findOne({
+			_id: new ObjectId(loanId),
+			userId: authResult.userId,
+		});
+
+		if (!loan) {
+			return NextResponse.json({ error: "Loan not found" }, { status: 404 });
+		}
+
+		// Update loan status
+		await db
+			.collection("loans")
+			.updateOne(
+				{ _id: new ObjectId(loanId) },
+				{ $set: { status, updatedAt: new Date() } }
+			);
+
+		// If status changed to approved, update user's total loans
+		if (status === "approved" && loan.status !== "approved") {
+			await db
+				.collection("users")
+				.updateOne(
+					{ _id: new ObjectId(authResult.userId) },
+					{ $inc: { totalLoans: Number(loan.loanAmount) } }
+				);
+		}
+
+		// If status changed from approved to something else, subtract from total loans
+		if (loan.status === "approved" && status !== "approved") {
+			await db
+				.collection("users")
+				.updateOne(
+					{ _id: new ObjectId(authResult.userId) },
+					{ $inc: { totalLoans: -Number(loan.loanAmount) } }
+				);
+		}
+
+		return NextResponse.json({
+			message: "Loan status updated successfully",
+		});
+	} catch (error) {
+		console.error("PATCH /api/loans error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

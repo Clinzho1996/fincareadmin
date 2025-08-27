@@ -52,7 +52,7 @@ export async function GET(request) {
 			.find({ userId: userIdString })
 			.toArray();
 
-		// Calculate totals
+		// Calculate totals - ONLY include approved loans
 		const totalSavings = savings.reduce(
 			(sum, s) => sum + Number(s.currentBalance || 0),
 			0
@@ -62,9 +62,27 @@ export async function GET(request) {
 			0
 		);
 
-		const totalLoans = loans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+		// Only count approved loans
+		const approvedLoans = loans.filter((loan) => loan.status === "approved");
+		const totalLoans = approvedLoans.reduce(
+			(sum, l) => sum + Number(l.loanAmount || 0),
+			0
+		);
 
 		const totalAuctions = auctions.length;
+
+		// Check if user's totalLoans is out of sync and update if needed
+		if (user.totalLoans !== totalLoans) {
+			await db
+				.collection("users")
+				.updateOne(
+					{ _id: new ObjectId(authResult.userId) },
+					{ $set: { totalLoans } }
+				);
+
+			// Update the user object for response
+			user.totalLoans = totalLoans;
+		}
 
 		return NextResponse.json({
 			status: "success",
@@ -77,7 +95,7 @@ export async function GET(request) {
 			},
 			savings,
 			investments,
-			loans,
+			loans: approvedLoans, // Only return approved loans to frontend
 			auctions,
 		});
 	} catch (error) {
