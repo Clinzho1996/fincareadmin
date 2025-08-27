@@ -40,7 +40,7 @@ export async function GET(request, { params }) {
 			.collection("bids")
 			.aggregate([
 				{ $match: { auctionId: new ObjectId(id) } },
-				{ $sort: { amount: -1, createdAt: -1 } }, // Sort by highest bid first, then by time
+				{ $sort: { amount: -1, createdAt: -1 } },
 				{
 					$lookup: {
 						from: "users",
@@ -122,7 +122,15 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
-		// Cannot bid on your own auction
+		// Check if auction has a userId and it's valid
+		if (!auction.userId || !ObjectId.isValid(auction.userId)) {
+			return NextResponse.json(
+				{ error: "Invalid auction owner information" },
+				{ status: 400 }
+			);
+		}
+
+		// Cannot bid on your own auction - FIXED: Proper comparison
 		if (auction.userId.toString() === authResult.userId.toString()) {
 			return NextResponse.json(
 				{ error: "Cannot bid on your own auction" },
@@ -162,27 +170,30 @@ export async function POST(request, { params }) {
 		// Check if user has sufficient funds
 		const user = await db
 			.collection("users")
-			.findOne({ _id: authResult.userId });
-		if (user.savingsBalance < amount) {
+			.findOne({ _id: new ObjectId(authResult.userId) });
+
+		if (!user || user.savingsBalance < amount) {
 			return NextResponse.json(
 				{ error: "Insufficient funds to place bid" },
 				{ status: 400 }
 			);
 		}
 
-		// Reserve the bid amount (in a real app, this would be more sophisticated)
+		// Reserve the bid amount
 		await db
 			.collection("users")
 			.updateOne(
-				{ _id: authResult.userId },
+				{ _id: new ObjectId(authResult.userId) },
 				{ $inc: { savingsBalance: -amount } }
 			);
 
 		// If there was a previous highest bid, refund that user
 		if (auction.currentBid > 0) {
-			const previousBid = await db
-				.collection("bids")
-				.findOne({ auctionId: new ObjectId(id), amount: auction.currentBid });
+			const previousBid = await db.collection("bids").findOne({
+				auctionId: new ObjectId(id),
+				amount: auction.currentBid,
+				status: "leading",
+			});
 
 			if (previousBid) {
 				await db
@@ -202,13 +213,12 @@ export async function POST(request, { params }) {
 			}
 		}
 
-		// Create the new bid
+		// Create the new bid - FIXED: Correct bid structure
 		const newBid = {
-			auctionName,
-			reservePrice,
-			endDate,
-			status: "active",
-			userId: new ObjectId(authResult.userId), // 👈 important
+			auctionId: new ObjectId(id),
+			userId: new ObjectId(authResult.userId),
+			amount: amount,
+			status: "leading",
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
@@ -232,11 +242,12 @@ export async function POST(request, { params }) {
 				.collection("users")
 				.findOne({ _id: auction.userId });
 
-			console.log(auctionOwner);
-			// In a real app, you would send a notification or email here
-			console.log(
-				`Auction "${auction.auctionName}" has received its first bid of ${amount}`
-			);
+			if (auctionOwner) {
+				console.log(
+					`Auction "${auction.auctionName}" has received its first bid of ${amount}`
+				);
+				// In a real app, send notification/email to auctionOwner.email
+			}
 		}
 
 		return NextResponse.json(
