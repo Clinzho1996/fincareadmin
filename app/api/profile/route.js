@@ -1,3 +1,4 @@
+// app/api/profile/route.js (updated)
 export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
@@ -86,12 +87,11 @@ export async function GET(request) {
 
 		// Determine membership status
 		let isMember = "none";
-		if (user.membershipStatus === "approved") {
-			isMember = "member";
-		} else if (user.membershipStatus === "pending") {
-			isMember = "pending";
-		} else if (user.membershipStatus === "rejected") {
-			isMember = "none";
+		if (
+			user.membershipLevel === "basic" ||
+			user.membershipLevel === "premium"
+		) {
+			isMember = user.membershipStatus === "approved" ? "member" : "pending";
 		}
 
 		return NextResponse.json({
@@ -103,6 +103,8 @@ export async function GET(request) {
 				totalLoans,
 				totalAuctions,
 				isMember, // Add membership status to response
+				membershipLevel: user.membershipLevel || "none",
+				membershipStatus: user.membershipStatus || "none",
 			},
 			savings,
 			investments,
