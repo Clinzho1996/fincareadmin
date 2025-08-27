@@ -204,10 +204,11 @@ export async function POST(request, { params }) {
 
 		// Create the new bid
 		const newBid = {
-			auctionId: new ObjectId(id),
-			userId: authResult.userId,
-			amount,
-			status: "leading",
+			auctionName,
+			reservePrice,
+			endDate,
+			status: "active",
+			userId: new ObjectId(authResult.userId), // 👈 important
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
