@@ -231,6 +231,7 @@ export async function POST(request, { params }) {
 				.collection("users")
 				.findOne({ _id: auction.userId });
 
+			console.log(auctionOwner);
 			// In a real app, you would send a notification or email here
 			console.log(
 				`Auction "${auction.auctionName}" has received its first bid of ${amount}`
