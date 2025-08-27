@@ -131,6 +131,7 @@ export async function POST(request) {
 			endDate: new Date(Date.now() + duration * 24 * 60 * 60 * 1000),
 			createdAt: new Date(),
 			updatedAt: new Date(),
+			userId: new ObjectId(authResult.userId),
 		};
 
 		const result = await db.collection("auctions").insertOne(newAuction);
