@@ -54,14 +54,16 @@ export async function GET(request) {
 
 		// Calculate totals
 		const totalSavings = savings.reduce(
-			(sum, s) => sum + (s.currentBalance || 0),
+			(sum, s) => sum + Number(s.currentBalance || 0),
 			0
 		);
 		const totalInvestment = investments.reduce(
-			(sum, i) => sum + (i.amount || 0),
+			(sum, i) => sum + Number(i.amount || 0),
 			0
 		);
-		const totalLoans = loans.reduce((sum, l) => sum + (l.amount || 0), 0);
+
+		const totalLoans = loans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+
 		const totalAuctions = auctions.length;
 
 		return NextResponse.json({
