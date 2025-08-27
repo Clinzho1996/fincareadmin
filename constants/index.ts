@@ -35,9 +35,4 @@ export const sidebarLinks = [
 		route: "/investment",
 		imgUrl: "/icons/inventory.svg",
 	},
-	{
-		label: "Inbox",
-		route: "/inbox",
-		imgUrl: "/icons/inbox.svg",
-	},
 ];

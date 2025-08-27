@@ -431,12 +431,9 @@ export function InvestmentDataTable() {
 									<SelectTrigger className="w-full mt-2">
 										<SelectValue placeholder="Select category" />
 									</SelectTrigger>
-									<SelectContent className="bg-white z-10">
+									<SelectContent className="bg-white z-100 select">
 										<SelectItem value="Real Estate">Real Estate</SelectItem>
-										<SelectItem value="Startups">Startups</SelectItem>
-										<SelectItem value="Agriculture">Agriculture</SelectItem>
-										<SelectItem value="Energy">Energy</SelectItem>
-										<SelectItem value="Technology">Technology</SelectItem>
+										<SelectItem value="Startups">Fixed Investment</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>

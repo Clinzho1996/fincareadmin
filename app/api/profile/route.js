@@ -84,6 +84,16 @@ export async function GET(request) {
 			user.totalLoans = totalLoans;
 		}
 
+		// Determine membership status
+		let isMember = "none";
+		if (user.membershipStatus === "approved") {
+			isMember = "member";
+		} else if (user.membershipStatus === "pending") {
+			isMember = "pending";
+		} else if (user.membershipStatus === "rejected") {
+			isMember = "none";
+		}
+
 		return NextResponse.json({
 			status: "success",
 			user: {
@@ -92,10 +102,11 @@ export async function GET(request) {
 				totalInvestment,
 				totalLoans,
 				totalAuctions,
+				isMember, // Add membership status to response
 			},
 			savings,
 			investments,
-			loans: approvedLoans, // Only return approved loans to frontend
+			loans: approvedLoans,
 			auctions,
 		});
 	} catch (error) {
