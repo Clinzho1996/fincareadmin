@@ -1,3 +1,4 @@
+// app/api/loans/repayment/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import cloudinary from "cloudinary";
@@ -21,9 +22,10 @@ export async function POST(request) {
 			);
 		}
 
+		// Get the form data
 		const formData = await request.formData();
 		const loanId = formData.get("loanId");
-		const proofFile = formData.get("proof"); // Blob
+		const proofFile = formData.get("proof");
 
 		if (!loanId) {
 			return NextResponse.json(
@@ -31,14 +33,17 @@ export async function POST(request) {
 				{ status: 400 }
 			);
 		}
-		if (!proofFile) {
+
+		if (!proofFile || typeof proofFile === "string") {
 			return NextResponse.json(
-				{ error: "Proof image is required" },
+				{ error: "Valid proof file is required" },
 				{ status: 400 }
 			);
 		}
 
 		const { db } = await connectToDatabase();
+
+		// Check if loan exists and belongs to user
 		const loan = await db.collection("loans").findOne({
 			_id: new ObjectId(loanId),
 			userId: authResult.userId,
@@ -47,6 +52,7 @@ export async function POST(request) {
 		if (!loan) {
 			return NextResponse.json({ error: "Loan not found" }, { status: 404 });
 		}
+
 		if (loan.status !== "approved") {
 			return NextResponse.json(
 				{ error: "Only approved loans can be repaid" },
@@ -54,22 +60,30 @@ export async function POST(request) {
 			);
 		}
 
-		// Convert Blob → Buffer
-		const buffer = Buffer.from(await proofFile.arrayBuffer());
+		// Convert the file to buffer
+		const bytes = await proofFile.arrayBuffer();
+		const buffer = Buffer.from(bytes);
 
 		// Upload to Cloudinary
 		const uploadResponse = await new Promise((resolve, reject) => {
-			const stream = cloudinary.v2.uploader.upload_stream(
+			const uploadStream = cloudinary.v2.uploader.upload_stream(
 				{
-					folder: "repayments",
+					folder: "fincare/repayments",
 					public_id: `loan_${loanId}_${Date.now()}`,
+					resource_type: "image",
 				},
 				(error, result) => {
-					if (error) reject(error);
-					else resolve(result);
+					if (error) {
+						console.error("Cloudinary upload error:", error);
+						reject(error);
+					} else {
+						resolve(result);
+					}
 				}
 			);
-			stream.end(buffer);
+
+			// Write the buffer to the upload stream
+			uploadStream.end(buffer);
 		});
 
 		// Create repayment record
@@ -80,17 +94,21 @@ export async function POST(request) {
 			proofImage: uploadResponse.secure_url,
 			status: "pending_review",
 			submittedAt: new Date(),
+			updatedAt: new Date(),
 		};
 
 		const result = await db.collection("loan_repayments").insertOne(repayment);
 
 		// Update loan status
-		await db
-			.collection("loans")
-			.updateOne(
-				{ _id: new ObjectId(loanId) },
-				{ $set: { repaymentStatus: "pending", updatedAt: new Date() } }
-			);
+		await db.collection("loans").updateOne(
+			{ _id: new ObjectId(loanId) },
+			{
+				$set: {
+					repaymentStatus: "pending",
+					updatedAt: new Date(),
+				},
+			}
+		);
 
 		return NextResponse.json(
 			{
