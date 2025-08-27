@@ -1,6 +1,7 @@
 // app/api/auctions/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
@@ -13,13 +14,49 @@ export async function GET(request) {
 			);
 		}
 
+		const { searchParams } = new URL(request.url);
+		const type = searchParams.get("type"); // "my-auctions" or "all"
+
 		const { db } = await connectToDatabase();
+
+		let query = {};
+
+		if (type === "my-auctions") {
+			// Get only user's auctions
+			query.userId = authResult.userId;
+		} else {
+			// Get all active auctions (for browsing)
+			query.status = "active";
+		}
+
 		const auctions = await db
 			.collection("auctions")
-			.find({ userId: authResult.userId })
+			.find(query)
+			.sort({ createdAt: -1 })
 			.toArray();
 
-		return NextResponse.json({ auctions });
+		// For each auction, get bid count and highest bid
+		const auctionsWithBidInfo = await Promise.all(
+			auctions.map(async (auction) => {
+				const bidCount = await db
+					.collection("bids")
+					.countDocuments({ auctionId: auction._id });
+
+				const userBid = await db.collection("bids").findOne({
+					auctionId: auction._id,
+					userId: authResult.userId,
+				});
+
+				return {
+					...auction,
+					bidCount,
+					userHasBid: !!userBid,
+					userBidAmount: userBid?.amount || 0,
+				};
+			})
+		);
+
+		return NextResponse.json({ auctions: auctionsWithBidInfo });
 	} catch (error) {
 		console.error("GET /api/auctions error:", error);
 		return NextResponse.json(
