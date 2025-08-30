@@ -30,6 +30,6 @@
 		"next.config.mjs",
 		"app/api/auth/[...nextauth]/route.js",
 		"app/(root)/(auth)/sign-in/page.jsx"
-	],
+, "components/ActionCard.jsx", "components/Hero.jsx"	],
 	"exclude": ["node_modules"]
 }
