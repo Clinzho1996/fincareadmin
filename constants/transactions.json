@@ -1,0 +1,324 @@
+{
+	"transactions": [
+		{
+			"_id": "65a7b4c1e8b9f12345abcd01",
+			"userId": "65a7b4c1e8b9f12345abc001",
+			"user": {
+				"firstName": "Chinedu",
+				"lastName": "Okoro",
+				"email": "chinedu.okoro@email.com"
+			},
+			"type": "deposit",
+			"amount": 50000,
+			"status": "completed",
+			"description": "Initial savings deposit",
+			"reference": "REF-20240115-001",
+			"createdAt": "2024-01-15T09:30:00.000Z",
+			"updatedAt": "2024-01-15T09:30:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd02",
+			"userId": "65a7b4c1e8b9f12345abc002",
+			"user": {
+				"firstName": "Aisha",
+				"lastName": "Mohammed",
+				"email": "aisha.mohammed@email.com"
+			},
+			"type": "investment",
+			"amount": 150000,
+			"status": "completed",
+			"description": "Fixed income investment",
+			"reference": "REF-20240115-002",
+			"createdAt": "2024-01-15T11:15:00.000Z",
+			"updatedAt": "2024-01-15T11:15:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd03",
+			"userId": "65a7b4c1e8b9f12345abc003",
+			"user": {
+				"firstName": "Emeka",
+				"lastName": "Nwankwo",
+				"email": "emeka.nwankwo@email.com"
+			},
+			"type": "withdrawal",
+			"amount": 25000,
+			"status": "pending",
+			"description": "Emergency funds withdrawal",
+			"reference": "REF-20240116-001",
+			"createdAt": "2024-01-16T14:20:00.000Z",
+			"updatedAt": "2024-01-16T14:20:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd04",
+			"userId": "65a7b4c1e8b9f12345abc004",
+			"user": {
+				"firstName": "Funke",
+				"lastName": "Adeyemi",
+				"email": "funke.adeyemi@email.com"
+			},
+			"type": "loan_repayment",
+			"amount": 45000,
+			"status": "completed",
+			"description": "Monthly loan repayment",
+			"reference": "REF-20240116-002",
+			"createdAt": "2024-01-16T16:45:00.000Z",
+			"updatedAt": "2024-01-16T16:45:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd05",
+			"userId": "65a7b4c1e8b9f12345abc005",
+			"user": {
+				"firstName": "Tunde",
+				"lastName": "Olawale",
+				"email": "tunde.olawale@email.com"
+			},
+			"type": "deposit",
+			"amount": 75000,
+			"status": "processing",
+			"description": "Salary deposit",
+			"reference": "REF-20240117-001",
+			"createdAt": "2024-01-17T08:30:00.000Z",
+			"updatedAt": "2024-01-17T08:30:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd06",
+			"userId": "65a7b4c1e8b9f12345abc006",
+			"user": {
+				"firstName": "Chioma",
+				"lastName": "Eze",
+				"email": "chioma.eze@email.com"
+			},
+			"type": "investment",
+			"amount": 200000,
+			"status": "completed",
+			"description": "Real estate investment",
+			"reference": "REF-20240117-002",
+			"createdAt": "2024-01-17T11:45:00.000Z",
+			"updatedAt": "2024-01-17T11:45:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd07",
+			"userId": "65a7b4c1e8b9f12345abc007",
+			"user": {
+				"firstName": "Kemi",
+				"lastName": "Adetola",
+				"email": "kemi.adetola@email.com"
+			},
+			"type": "withdrawal",
+			"amount": 15000,
+			"status": "failed",
+			"description": "Failed withdrawal attempt",
+			"reference": "REF-20240118-001",
+			"createdAt": "2024-01-18T13:20:00.000Z",
+			"updatedAt": "2024-01-18T13:20:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd08",
+			"userId": "65a7b4c1e8b9f12345abc008",
+			"user": {
+				"firstName": "Segun",
+				"lastName": "Adeboye",
+				"email": "segun.adeboye@email.com"
+			},
+			"type": "transfer",
+			"amount": 30000,
+			"status": "completed",
+			"description": "Transfer to family member",
+			"reference": "REF-20240118-002",
+			"createdAt": "2024-01-18T15:30:00.000Z",
+			"updatedAt": "2024-01-18T15:30:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd09",
+			"userId": "65a7b4c1e8b9f12345abc009",
+			"user": {
+				"firstName": "Ngozi",
+				"lastName": "Chukwu",
+				"email": "ngozi.chukwu@email.com"
+			},
+			"type": "deposit",
+			"amount": 100000,
+			"status": "completed",
+			"description": "Business proceeds deposit",
+			"reference": "REF-20240119-001",
+			"createdAt": "2024-01-19T10:15:00.000Z",
+			"updatedAt": "2024-01-19T10:15:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd10",
+			"userId": "65a7b4c1e8b9f12345abc010",
+			"user": {
+				"firstName": "Bola",
+				"lastName": "Tinubu",
+				"email": "bola.tinubu@email.com"
+			},
+			"type": "investment",
+			"amount": 500000,
+			"status": "processing",
+			"description": "High-yield investment",
+			"reference": "REF-20240119-002",
+			"createdAt": "2024-01-19T14:45:00.000Z",
+			"updatedAt": "2024-01-19T14:45:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd11",
+			"userId": "65a7b4c1e8b9f12345abc011",
+			"user": {
+				"firstName": "Yemi",
+				"lastName": "Osinbajo",
+				"email": "yemi.osinbajo@email.com"
+			},
+			"type": "withdrawal",
+			"amount": 45000,
+			"status": "completed",
+			"description": "School fees payment",
+			"reference": "REF-20240120-001",
+			"createdAt": "2024-01-20T09:30:00.000Z",
+			"updatedAt": "2024-01-20T09:30:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd12",
+			"userId": "65a7b4c1e8b9f12345abc012",
+			"user": {
+				"firstName": "Adeola",
+				"lastName": "Balogun",
+				"email": "adeola.balogun@email.com"
+			},
+			"type": "loan_repayment",
+			"amount": 28000,
+			"status": "pending",
+			"description": "Partial loan repayment",
+			"reference": "REF-20240120-002",
+			"createdAt": "2024-01-20T12:15:00.000Z",
+			"updatedAt": "2024-01-20T12:15:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd13",
+			"userId": "65a7b4c1e8b9f12345abc013",
+			"user": {
+				"firstName": "Folake",
+				"lastName": "Adebayo",
+				"email": "folake.adebayo@email.com"
+			},
+			"type": "deposit",
+			"amount": 65000,
+			"status": "completed",
+			"description": "Freelance payment deposit",
+			"reference": "REF-20240121-001",
+			"createdAt": "2024-01-21T11:20:00.000Z",
+			"updatedAt": "2024-01-21T11:20:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd14",
+			"userId": "65a7b4c1e8b9f12345abc014",
+			"user": {
+				"firstName": "Ibrahim",
+				"lastName": "Suleiman",
+				"email": "ibrahim.suleiman@email.com"
+			},
+			"type": "transfer",
+			"amount": 18000,
+			"status": "completed",
+			"description": "Transfer to business partner",
+			"reference": "REF-20240121-002",
+			"createdAt": "2024-01-21T14:35:00.000Z",
+			"updatedAt": "2024-01-21T14:35:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd15",
+			"userId": "65a7b4c1e8b9f12345abc015",
+			"user": {
+				"firstName": "Zainab",
+				"lastName": "Abdullahi",
+				"email": "zainab.abdullahi@email.com"
+			},
+			"type": "investment",
+			"amount": 120000,
+			"status": "completed",
+			"description": "Agricultural investment",
+			"reference": "REF-20240122-001",
+			"createdAt": "2024-01-22T10:10:00.000Z",
+			"updatedAt": "2024-01-22T10:10:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd16",
+			"userId": "65a7b4c1e8b9f12345abc016",
+			"user": {
+				"firstName": "Oluwatobi",
+				"lastName": "Adeyinka",
+				"email": "oluwatobi.adeyinka@email.com"
+			},
+			"type": "withdrawal",
+			"amount": 35000,
+			"status": "completed",
+			"description": "Medical expenses withdrawal",
+			"reference": "REF-20240122-002",
+			"createdAt": "2024-01-22T13:45:00.000Z",
+			"updatedAt": "2024-01-22T13:45:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd17",
+			"userId": "65a7b4c1e8b9f12345abc017",
+			"user": {
+				"firstName": "Ifeanyi",
+				"lastName": "Nwosu",
+				"email": "ifeanyi.nwosu@email.com"
+			},
+			"type": "deposit",
+			"amount": 85000,
+			"status": "processing",
+			"description": "Rental income deposit",
+			"reference": "REF-20240123-001",
+			"createdAt": "2024-01-23T09:25:00.000Z",
+			"updatedAt": "2024-01-23T09:25:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd18",
+			"userId": "65a7b4c1e8b9f12345abc018",
+			"user": {
+				"firstName": "Halima",
+				"lastName": "Yusuf",
+				"email": "halima.yusuf@email.com"
+			},
+			"type": "loan_repayment",
+			"amount": 52000,
+			"status": "completed",
+			"description": "Final loan repayment",
+			"reference": "REF-20240123-002",
+			"createdAt": "2024-01-23T12:30:00.000Z",
+			"updatedAt": "2024-01-23T12:30:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd19",
+			"userId": "65a7b4c1e8b9f12345abc019",
+			"user": {
+				"firstName": "Chika",
+				"lastName": "Okeke",
+				"email": "chika.okeke@email.com"
+			},
+			"type": "transfer",
+			"amount": 22000,
+			"status": "failed",
+			"description": "Failed transfer - insufficient funds",
+			"reference": "REF-20240124-001",
+			"createdAt": "2024-01-24T11:15:00.000Z",
+			"updatedAt": "2024-01-24T11:15:00.000Z"
+		},
+		{
+			"_id": "65a7b4c1e8b9f12345abcd20",
+			"userId": "65a7b4c1e8b9f12345abc020",
+			"user": {
+				"firstName": "Kunle",
+				"lastName": "Afolabi",
+				"email": "kunle.afolabi@email.com"
+			},
+			"type": "investment",
+			"amount": 300000,
+			"status": "completed",
+			"description": "Technology startup investment",
+			"reference": "REF-20240124-002",
+			"createdAt": "2024-01-24T15:20:00.000Z",
+			"updatedAt": "2024-01-24T15:20:00.000Z"
+		}
+	]
+}

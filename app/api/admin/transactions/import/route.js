@@ -2,7 +2,7 @@
 import { connectToDatabase } from "@/lib/mongodb";
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
-import transactionsData from "./transactions.json";
+import transactionsData from "../../../../../constants/transactions.json";
 
 export async function POST(request) {
 	try {
