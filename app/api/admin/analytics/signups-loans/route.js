@@ -105,7 +105,7 @@ export async function GET(request) {
 		];
 
 		// Initialize all months with zero values
-		monthNames.forEach((month, index) => {
+		monthNames.forEach((month) => {
 			monthsData[month] = {
 				totalUsers: 0,
 				totalLoans: 0,
