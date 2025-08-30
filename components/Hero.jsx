@@ -59,7 +59,7 @@ function Hero() {
 
 	if (loading) {
 		return (
-			<div className="flex flex-row justify-between items-center gap-4 w-full max-w-[100vw]">
+			<div className="flex flex-row justify-between items-center gap-4 w-full max-w-[100vw] border border-gray-200 rounded-lg">
 				{[1, 2, 3, 4].map((item) => (
 					<div
 						key={item}

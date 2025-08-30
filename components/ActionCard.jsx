@@ -5,7 +5,7 @@ function ActionCard({ title, amount, change, subtitle }) {
 	const changeIcon = isPositive ? "↗" : "↘";
 
 	return (
-		<div className="flex-1 bg-white rounded-lg shadow-md p-6 border border-gray-100 h-[160px]">
+		<div className="flex-1 bg-white rounded-lg shadow-md p-6 border border-gray-200 h-[160px]">
 			<h3 className="text-sm font-medium text-gray-600 mb-2">{title}</h3>
 			<p className="text-2xl font-bold text-gray-900 mb-2">{amount}</p>
 
