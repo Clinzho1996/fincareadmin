@@ -8,7 +8,7 @@ export async function GET(request) {
 		// Verify admin permissions
 		const token = await getToken({ req: request });
 
-		if (!token || token.role !== "admin") {
+		if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Admin access required." },
 				{ status: 403 }

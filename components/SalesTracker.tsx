@@ -16,8 +16,7 @@ import {
 	ChartTooltip,
 } from "@/components/ui/chart";
 import { IconRectangleFilled } from "@tabler/icons-react";
-import axios from "axios";
-import { getSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { Skeleton } from "./ui/skeleton";
 
@@ -36,99 +35,97 @@ const months = [
 	"December",
 ];
 
-interface ApiResponse {
+interface AnalyticsResponse {
 	status: string;
-	message: string;
 	data: {
 		[month: string]: {
-			totalAuthors: number;
-			totalReaders: number;
+			totalUsers: number;
+			totalLoans: number;
 		};
 	};
 }
 
-function SalesTracker() {
+function AnalyticsChart() {
 	const [chartData, setChartData] = useState<
-		{ month: string; totalAuthors: number; totalReaders: number }[]
+		{ month: string; totalUsers: number; totalLoans: number }[]
 	>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [selectedYear, setSelectedYear] = useState<string>(
 		new Date().getFullYear().toString()
 	);
+	const { data: session } = useSession();
 
-	const fetchTransactionData = async () => {
+	const fetchAnalyticsData = async () => {
 		try {
 			setIsLoading(true);
-			const session = await getSession();
 
-			console.log("session", session);
-
-			const accessToken = session?.accessToken;
-			if (!accessToken) {
+			if (!session?.accessToken) {
 				console.error("No access token found.");
 				setIsLoading(false);
 				return;
 			}
 
-			const response = await axios.post<ApiResponse>(
-				`https://api.comicscrolls.com/api/v1/analytics/admin/sign-up-per-month`,
-				{ year: selectedYear },
+			const response = await fetch(
+				`/api/admin/analytics/signups-loans?year=${selectedYear}`,
 				{
 					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
+						Authorization: `Bearer ${session.accessToken}`,
 					},
 				}
 			);
 
-			// Extract the data for each month
+			if (!response.ok) {
+				throw new Error("Failed to fetch analytics data");
+			}
+
+			const data: AnalyticsResponse = await response.json();
+
+			// Format the data for each month
 			const formattedData = months.map((month) => ({
 				month,
-				totalAuthors: response.data.data[month]?.totalAuthors || 0,
-				totalReaders: response.data.data[month]?.totalReaders || 0,
+				totalUsers: data.data[month]?.totalUsers || 0,
+				totalLoans: data.data[month]?.totalLoans || 0,
 			}));
 
-			console.log("Transaction Data:", formattedData);
+			console.log("Analytics Data:", formattedData);
 			setChartData(formattedData);
 		} catch (error) {
-			console.error("Error fetching transaction data:", error);
+			console.error("Error fetching analytics data:", error);
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchTransactionData();
-	}, [selectedYear]);
+		if (session) {
+			fetchAnalyticsData();
+		}
+	}, [selectedYear, session]);
 
 	const chartConfig = {
-		Authors: {
-			label: "Total Customers",
+		Users: {
+			label: "Total Users",
 			color: "hsl(var(--chart-1))",
 		},
-		Readers: {
-			label: "Total Orders",
+		Loans: {
+			label: "Total Loans",
 			color: "hsl(var(--chart-2))",
 		},
 	} satisfies ChartConfig;
 
 	return (
-		<div className=" p-3 bg-white rounded-lg border border-[#E2E4E9] w-full">
+		<div className="p-3 bg-white rounded-lg border border-[#E2E4E9] w-full">
 			{isLoading ? (
 				<div className="flex flex-col justify-start items-center">
-					<div className="flex items-center space-x-4 ">
-						<Skeleton className="h-12 w-12 rounded-full bg-gray-500" />
-						<div className="space-y-2">
-							<Skeleton className="h-4 w-[500px] bg-gray-500" />
-							<Skeleton className="h-4 w-[500px] bg-gray-500" />
+					<div className="flex items-center space-x-4 w-full">
+						<Skeleton className="h-12 w-12 rounded-full bg-gray-300" />
+						<div className="space-y-2 flex-1">
+							<Skeleton className="h-4 w-full bg-gray-300" />
+							<Skeleton className="h-4 w-full bg-gray-300" />
 						</div>
 					</div>
-					<div className="flex items-center space-x-4">
-						<Skeleton className="h-12 w-12 rounded-full bg-gray-500" />
-						<div className="space-y-2">
-							<Skeleton className="h-4 w-[500px] bg-gray-500" />
-							<Skeleton className="h-4 w-[500px] bg-gray-500" />
-						</div>
+					<div className="w-full mt-4">
+						<Skeleton className="h-40 w-full bg-gray-300" />
 					</div>
 				</div>
 			) : (
@@ -136,7 +133,7 @@ function SalesTracker() {
 					<div className="flex flex-col lg:flex-row justify-between items-center border-b-[1px] border-b-[#E2E4E9] py-2">
 						<div className="flex flex-row justify-start gap-2 items-center">
 							<Image src="/images/info.png" alt="info" width={20} height={20} />
-							<p className="text-sm font-bold text-black">Report Tracker</p>
+							<p className="text-sm font-bold text-black">Analytics Tracker</p>
 						</div>
 						<div className="flex flex-row justify-end gap-3 items-center">
 							<Select onValueChange={setSelectedYear}>
@@ -182,11 +179,11 @@ function SalesTracker() {
 									cursor={{ stroke: "#ccc", strokeWidth: 1 }}
 									content={({ payload, label }) => {
 										if (!payload || payload.length === 0) return null;
-										const authors = payload.find(
-											(p) => p.dataKey === "totalAuthors"
+										const users = payload.find(
+											(p) => p.dataKey === "totalUsers"
 										)?.value;
-										const readers = payload.find(
-											(p) => p.dataKey === "totalReaders"
+										const loans = payload.find(
+											(p) => p.dataKey === "totalLoans"
 										)?.value;
 										return (
 											<div className="custom-tooltip p-3 bg-white border-[1px] shadow-lg border-[#E4E4E7] rounded-lg w-[280px]">
@@ -196,7 +193,7 @@ function SalesTracker() {
 												<div className="flex flex-row flex-wrap mt-3 gap-5 justify-center items-center">
 													<div>
 														<p className="text-bold font-inter text-xs text-center">
-															{authors}
+															{users}
 														</p>
 														<div className="flex flex-row justify-start items-center gap-1">
 															<IconRectangleFilled size={10} color="#098E09" />
@@ -205,7 +202,7 @@ function SalesTracker() {
 													</div>
 													<div>
 														<p className="text-bold font-inter text-xs text-center">
-															{readers}
+															{loans}
 														</p>
 														<div className="flex flex-row justify-start items-center gap-1">
 															<IconRectangleFilled size={10} color="#6E3FF3" />
@@ -218,14 +215,14 @@ function SalesTracker() {
 									}}
 								/>
 								<Line
-									dataKey="totalAuthors"
+									dataKey="totalUsers"
 									type="monotone"
 									stroke="#09A609"
 									strokeWidth={2}
 									dot={true}
 								/>
 								<Line
-									dataKey="totalReaders"
+									dataKey="totalLoans"
 									type="monotone"
 									stroke="#6E3FF3"
 									strokeWidth={2}
@@ -240,4 +237,4 @@ function SalesTracker() {
 	);
 }
 
-export default SalesTracker;
+export default AnalyticsChart;

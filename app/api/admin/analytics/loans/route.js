@@ -1,6 +1,6 @@
 // app/api/admin/analytics/loans/route.js
 import { connectToDatabase } from "@/lib/mongodb";
-import { getToken } from "next-auth/jest";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
