@@ -6,36 +6,52 @@ import {
 	RowSelectionState,
 	SortingState,
 	VisibilityState,
+	flexRender,
+	getCoreRowModel,
+	getFilteredRowModel,
+	getPaginationRowModel,
+	getSortedRowModel,
+	useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Download, Eye, MoreHorizontal } from "lucide-react";
 
-import Loader from "@/components/Loader";
-import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { IconCloudDownload } from "@tabler/icons-react";
-import axios from "axios";
-import { getSession } from "next-auth/react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { useSession } from "next-auth/react";
 import React, { useEffect, useState } from "react";
-import { TransactionTable } from "./transaction-table";
 
-interface ApiResponse {
-	data: Transaction[];
-}
 export type Transaction = {
-	id: string;
-	user: { first_name: string; last_name: string; other_name: string };
-	name: string;
-	first_name: string;
-	last_name: string;
-	other_name: string;
-	amount: string;
-	date: string;
-	created: string;
-	created_at: string;
-	ref_id: string;
-	status: string;
-	narration: string;
+	_id: string;
+	userId: string;
+	user: {
+		firstName: string;
+		lastName: string;
+		email: string;
+	};
+	type: string;
+	amount: number;
+	status: "pending" | "completed" | "failed" | "processing";
+	description: string;
+	reference: string;
+	createdAt: string;
+	updatedAt: string;
 };
 
 declare module "next-auth" {
@@ -44,12 +60,13 @@ declare module "next-auth" {
 	}
 }
 
-const Table = () => {
+const TransactionsTable = () => {
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [tableData, setTableData] = useState<Transaction[]>([]);
-	const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
-	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
-	const [selectedRow, setSelectedRow] = useState<any>(null);
+	const [selectedTransaction, setSelectedTransaction] =
+		useState<Transaction | null>(null);
+	const [isDetailModalOpen, setDetailModalOpen] = useState(false);
+	const { data: session } = useSession();
 
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -60,28 +77,9 @@ const Table = () => {
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 	const [globalFilter, setGlobalFilter] = useState("");
 
-	const openRestoreModal = (row: any) => {
-		setSelectedRow(row.original); // Use row.original to store the full row data
-		setRestoreModalOpen(true);
-	};
-
-	const openDeleteModal = (row: any) => {
-		setSelectedRow(row.original); // Use row.original to store the full row data
-		setDeleteModalOpen(true);
-	};
-
-	const closeRestoreModal = () => {
-		setRestoreModalOpen(false);
-	};
-
-	const closeDeleteModal = () => {
-		setDeleteModalOpen(false);
-	};
-
-	const fetchTransactionHistory = async () => {
+	const fetchTransactions = async () => {
 		try {
 			setIsLoading(true);
-			const session = await getSession();
 
 			if (!session?.accessToken) {
 				console.error("No access token found.");
@@ -89,58 +87,133 @@ const Table = () => {
 				return;
 			}
 
-			const response = await axios.get<ApiResponse>(
-				"https://api.kuditrak.ng/api/v1/transaction",
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${session?.accessToken}`,
-					},
-				}
-			);
+			const response = await fetch("/api/admin/transactions", {
+				headers: {
+					Authorization: `Bearer ${session.accessToken}`,
+				},
+			});
 
-			const fetchedData = response.data.data;
+			if (!response.ok) {
+				throw new Error("Failed to fetch transactions");
+			}
 
-			console.log("Transaction Data:", fetchedData);
+			const data = await response.json();
 
-			const mappedData = fetchedData.map((item) => ({
-				id: item.id,
-				name: `${item.user.first_name} ${item.user.last_name} ${
-					item.user.other_name || ""
-				}`,
-				first_name: item.user.first_name,
-				user: item.user,
-				last_name: item.user.last_name,
-				other_name: item.user.other_name,
-				amount: item.amount,
-				date: item.date,
-				narration: item.narration,
-				ref_id: item.ref_id,
-				created: item.created_at,
-				created_at: item.created_at,
-				status: item.ref_id ? "completed" : "pending",
-			}));
-
-			setTableData(mappedData);
+			if (data.status === "success") {
+				setTableData(data.data);
+			}
 		} catch (error) {
-			console.error("Error fetching user data:", error);
+			console.error("Error fetching transactions:", error);
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchTransactionHistory();
-	}, []);
+		if (session) {
+			fetchTransactions();
+		}
+	}, [session]);
 
 	const formatDate = (rawDate: string) => {
 		const options: Intl.DateTimeFormatOptions = {
 			year: "numeric",
-			month: "long",
+			month: "short",
 			day: "numeric",
-		}; // Correct types
-		const parsedDate = new Date(rawDate); // Ensure the date is parsed correctly
+			hour: "2-digit",
+			minute: "2-digit",
+		};
+		const parsedDate = new Date(rawDate);
 		return new Intl.DateTimeFormat("en-US", options).format(parsedDate);
+	};
+
+	const formatCurrency = (amount: number) => {
+		return new Intl.NumberFormat("en-NG", {
+			style: "currency",
+			currency: "NGN",
+		}).format(amount);
+	};
+
+	const handleViewDetails = (transaction: Transaction) => {
+		setSelectedTransaction(transaction);
+		setDetailModalOpen(true);
+	};
+
+	const handleExport = () => {
+		// Export selected rows or all rows
+		const selectedRowIds = Object.keys(rowSelection);
+		const dataToExport =
+			selectedRowIds.length > 0
+				? tableData.filter((row) => selectedRowIds.includes(row._id))
+				: tableData;
+
+		const csvContent = [
+			[
+				"ID",
+				"User",
+				"Type",
+				"Amount",
+				"Status",
+				"Description",
+				"Reference",
+				"Created At",
+			],
+			...dataToExport.map((transaction) => [
+				transaction._id,
+				`${transaction.user.firstName} ${transaction.user.lastName}`,
+				transaction.type,
+				transaction.amount,
+				transaction.status,
+				transaction.description,
+				transaction.reference,
+				formatDate(transaction.createdAt),
+			]),
+		]
+			.map((row) => row.join(","))
+			.join("\n");
+
+		const blob = new Blob([csvContent], { type: "text/csv" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `transactions-${
+			new Date().toISOString().split("T")[0]
+		}.csv`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
+
+	const handleStatusUpdate = async (
+		transactionId: string,
+		newStatus: Transaction["status"]
+	) => {
+		try {
+			if (!session?.accessToken) {
+				console.error("No access token found.");
+				return;
+			}
+
+			const response = await fetch(`/api/admin/transactions/${transactionId}`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${session.accessToken}`,
+				},
+				body: JSON.stringify({ status: newStatus }),
+			});
+
+			if (response.ok) {
+				// Update local state
+				setTableData((prev) =>
+					prev.map((t) =>
+						t._id === transactionId ? { ...t, status: newStatus } : t
+					)
+				);
+			}
+		} catch (error) {
+			console.error("Error updating transaction status:", error);
+		}
 	};
 
 	const columns: ColumnDef<Transaction>[] = [
@@ -154,7 +227,6 @@ const Table = () => {
 					}
 					onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
 					aria-label="Select all"
-					className="check"
 				/>
 			),
 			cell: ({ row }) => (
@@ -162,177 +234,337 @@ const Table = () => {
 					checked={row.getIsSelected()}
 					onCheckedChange={(value) => row.toggleSelected(!!value)}
 					aria-label="Select row"
-					className="check"
 				/>
 			),
 		},
 		{
-			accessorKey: "name",
-			header: ({ column }) => {
-				return (
-					<Button
-						variant="ghost"
-						className="text-[13px] text-left"
-						onClick={() =>
-							column.toggleSorting(column.getIsSorted() === "asc")
-						}>
-						Name
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				);
-			},
+			accessorKey: "user",
+			header: "User",
 			cell: ({ row }) => {
-				const name = row.getValue<string>("name");
-
-				return <span className="text-xs text-black">{name}</span>;
-			},
-		},
-
-		{
-			accessorKey: "amount",
-			header: "Amount",
-			cell: ({ row }) => {
-				const amount = row.getValue<string>("amount");
-
-				return <span className="text-xs text-primary-6">{amount}</span>;
-			},
-		},
-
-		{
-			accessorKey: "status",
-			header: ({ column }) => {
+				const user = row.original.user;
 				return (
-					<Button
-						variant="ghost"
-						className="text-[13px] text-start items-start"
-						onClick={() =>
-							column.toggleSorting(column.getIsSorted() === "asc")
-						}>
-						Status
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				);
-			},
-			cell: ({ row }) => {
-				const status = row.getValue<string>("status");
-				return (
-					<div className={`status ${status === "completed" ? "green" : "red"}`}>
-						{status}
+					<div className="flex flex-col">
+						<span className="text-sm font-medium">
+							{user.firstName} {user.lastName}
+						</span>
+						<span className="text-xs text-gray-500">{user.email}</span>
 					</div>
 				);
 			},
 		},
-
 		{
-			accessorKey: "id",
-			header: "Transaction ID",
+			accessorKey: "type",
+			header: "Type",
 			cell: ({ row }) => {
-				const id = row.getValue<string>("id");
+				const type = row.getValue("type") as string;
+				return <span className="text-sm capitalize">{type}</span>;
+			},
+		},
+		{
+			accessorKey: "amount",
+			header: ({ column }) => {
+				return (
+					<Button
+						variant="ghost"
+						onClick={() =>
+							column.toggleSorting(column.getIsSorted() === "asc")
+						}>
+						Amount
+						<ArrowUpDown className="ml-2 h-4 w-4" />
+					</Button>
+				);
+			},
+			cell: ({ row }) => {
+				const amount = row.getValue("amount") as number;
+				return (
+					<span className="text-sm font-medium">{formatCurrency(amount)}</span>
+				);
+			},
+		},
+		{
+			accessorKey: "status",
+			header: "Status",
+			cell: ({ row }) => {
+				const status = row.getValue("status") as string;
+				const statusColors = {
+					completed: "bg-green-100 text-green-800",
+					pending: "bg-yellow-100 text-yellow-800",
+					processing: "bg-blue-100 text-blue-800",
+					failed: "bg-red-100 text-red-800",
+				};
 
 				return (
-					<span className="text-xs text-primary-6">
-						{id.length > 20 ? id.slice(0, 20) + "..." : id}
+					<span
+						className={`px-2 py-1 rounded-full text-xs capitalize ${
+							statusColors[status as keyof typeof statusColors] || ""
+						}`}>
+						{status}
 					</span>
 				);
 			},
 		},
 		{
-			accessorKey: "created",
-			header: ({ column }) => {
-				return (
-					<Button
-						variant="ghost"
-						className="text-[13px] text-left"
-						onClick={() =>
-							column.toggleSorting(column.getIsSorted() === "asc")
-						}>
-						Created on
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				);
-			},
+			accessorKey: "description",
+			header: "Description",
 			cell: ({ row }) => {
-				const created = row.getValue<string>("created");
-
-				return (
-					<span className="text-xs text-primary-6">{formatDate(created)}</span>
-				);
+				const description = row.getValue("description") as string;
+				return <span className="text-sm">{description}</span>;
 			},
 		},
-
 		{
-			accessorKey: "narration",
-			header: "Narration",
+			accessorKey: "reference",
+			header: "Reference",
 			cell: ({ row }) => {
-				const narration = row.getValue<string>("narration");
-
-				return <span className="text-xs text-primary-6">{narration}</span>;
+				const reference = row.getValue("reference") as string;
+				return <span className="text-sm font-mono">{reference}</span>;
 			},
 		},
-
+		{
+			accessorKey: "createdAt",
+			header: "Date",
+			cell: ({ row }) => {
+				const createdAt = row.getValue("createdAt") as string;
+				return <span className="text-sm">{formatDate(createdAt)}</span>;
+			},
+		},
 		{
 			id: "actions",
-			header: "Action",
+			header: "Actions",
 			cell: ({ row }) => {
-				const actions = row.original;
+				const transaction = row.original;
 
 				return (
-					<div className="flex flex-row justify-start items-center gap-5">
-						<Button
-							className="border-[#E8E8E8] border-[1px] text-sm font-medium text-[#6B7280] font-inter"
-							onClick={() => openDeleteModal(row)}>
-							<IconCloudDownload />
-						</Button>
-					</div>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="ghost" className="h-8 w-8 p-0">
+								<span className="sr-only">Open menu</span>
+								<MoreHorizontal className="h-4 w-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuLabel>Actions</DropdownMenuLabel>
+							<DropdownMenuItem onClick={() => handleViewDetails(transaction)}>
+								<Eye className="mr-2 h-4 w-4" />
+								View Details
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								onClick={() => navigator.clipboard.writeText(transaction._id)}>
+								Copy ID
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onClick={() =>
+									navigator.clipboard.writeText(transaction.reference)
+								}>
+								Copy Reference
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								onClick={() =>
+									handleStatusUpdate(transaction._id, "completed")
+								}>
+								Mark as Completed
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onClick={() => handleStatusUpdate(transaction._id, "failed")}>
+								Mark as Failed
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				);
 			},
 		},
 	];
 
-	const handleDelete = () => {
-		const selectedRowIds = Object.keys(rowSelection).filter(
-			(key) => rowSelection[key]
-		);
-
-		// Ensure the row ids match the data's keys and use the correct identifier
-		const filteredData = tableData.filter(
-			(row) => !selectedRowIds.includes(row.id) // assuming row.id is your unique identifier
-		);
-		setTableData(filteredData);
-		setRowSelection({}); // Clear row selection after deletion
-	};
+	const table = useReactTable({
+		data: tableData,
+		columns,
+		onSortingChange: setSorting,
+		onColumnFiltersChange: setColumnFilters,
+		getCoreRowModel: getCoreRowModel(),
+		getPaginationRowModel: getPaginationRowModel(),
+		getSortedRowModel: getSortedRowModel(),
+		getFilteredRowModel: getFilteredRowModel(),
+		onColumnVisibilityChange: setColumnVisibility,
+		onRowSelectionChange: setRowSelection,
+		onGlobalFilterChange: setGlobalFilter,
+		state: {
+			sorting,
+			columnFilters,
+			columnVisibility,
+			rowSelection,
+			globalFilter,
+		},
+	});
 
 	return (
-		<>
-			{isLoading ? (
-				<Loader />
-			) : (
-				<TransactionTable columns={columns} data={tableData} />
-			)}
-			{isDeleteModalOpen && (
-				<Modal onClose={closeDeleteModal} isOpen={isDeleteModalOpen}>
-					<p>Are you sure you want to delete {selectedRow?.name}'s account?</p>
+		<div className="rounded-lg border-[1px] p-5">
+			<div className="flex items-center justify-between py-4 gap-4">
+				<Input
+					placeholder="Search transactions..."
+					value={globalFilter}
+					onChange={(event) => setGlobalFilter(event.target.value)}
+					className="max-w-sm"
+				/>
+				<div className="flex items-center gap-2">
+					<Button
+						onClick={handleExport}
+						variant="outline"
+						className="bg-primary-1 text-white border border-[#FFFFFF00]">
+						<Download className="mr-2 h-4 w-4" />
+						Export
+					</Button>
+				</div>
+			</div>
 
-					<p className="text-sm text-primary-6">This can't be undone</p>
-					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
-						<Button
-							className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
-							onClick={closeDeleteModal}>
-							Cancel
-						</Button>
-						<Button
-							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
-							onClick={() => {
-								handleDelete();
-								closeDeleteModal();
-							}}>
-							Yes, Confirm
-						</Button>
+			<div className="rounded-md border">
+				<Table>
+					<TableHeader>
+						{table.getHeaderGroups().map((headerGroup) => (
+							<TableRow key={headerGroup.id}>
+								{headerGroup.headers.map((header) => {
+									return (
+										<TableHead key={header.id}>
+											{header.isPlaceholder
+												? null
+												: flexRender(
+														header.column.columnDef.header,
+														header.getContext()
+												  )}
+										</TableHead>
+									);
+								})}
+							</TableRow>
+						))}
+					</TableHeader>
+					<TableBody>
+						{table.getRowModel().rows?.length ? (
+							table.getRowModel().rows.map((row) => (
+								<TableRow
+									key={row.id}
+									data-state={row.getIsSelected() && "selected"}>
+									{row.getVisibleCells().map((cell) => (
+										<TableCell key={cell.id}>
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext()
+											)}
+										</TableCell>
+									))}
+								</TableRow>
+							))
+						) : (
+							<TableRow>
+								<TableCell
+									colSpan={columns.length}
+									className="h-24 text-center">
+									{isLoading
+										? "Loading transactions..."
+										: "No transactions found."}
+								</TableCell>
+							</TableRow>
+						)}
+					</TableBody>
+				</Table>
+			</div>
+
+			<div className="flex items-center justify-end space-x-2 py-4">
+				<div className="flex-1 text-sm text-muted-foreground">
+					{table.getFilteredSelectedRowModel().rows.length} of{" "}
+					{table.getFilteredRowModel().rows.length} row(s) selected.
+				</div>
+				<div className="space-x-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => table.previousPage()}
+						disabled={!table.getCanPreviousPage()}>
+						Previous
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => table.nextPage()}
+						disabled={!table.getCanNextPage()}>
+						Next
+					</Button>
+				</div>
+			</div>
+
+			{/* Transaction Detail Modal */}
+			{isDetailModalOpen && selectedTransaction && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+						<h2 className="text-xl font-bold mb-4">Transaction Details</h2>
+
+						<div className="grid grid-cols-2 gap-4 mb-4">
+							<div>
+								<p className="text-sm text-gray-500">Transaction ID</p>
+								<p className="font-medium">{selectedTransaction._id}</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">Reference</p>
+								<p className="font-medium">{selectedTransaction.reference}</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">User</p>
+								<p className="font-medium">
+									{selectedTransaction.user.firstName}{" "}
+									{selectedTransaction.user.lastName}
+								</p>
+								<p className="text-sm text-gray-500">
+									{selectedTransaction.user.email}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">Amount</p>
+								<p className="font-medium">
+									{formatCurrency(selectedTransaction.amount)}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">Type</p>
+								<p className="font-medium capitalize">
+									{selectedTransaction.type}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">Status</p>
+								<p className="font-medium capitalize">
+									{selectedTransaction.status}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">Created At</p>
+								<p className="font-medium">
+									{formatDate(selectedTransaction.createdAt)}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm text-gray-500">Updated At</p>
+								<p className="font-medium">
+									{formatDate(selectedTransaction.updatedAt)}
+								</p>
+							</div>
+						</div>
+
+						<div className="mb-4">
+							<p className="text-sm text-gray-500">Description</p>
+							<p className="font-medium">{selectedTransaction.description}</p>
+						</div>
+
+						<div className="flex justify-end gap-2">
+							<Button
+								variant="outline"
+								onClick={() => setDetailModalOpen(false)}>
+								Close
+							</Button>
+						</div>
 					</div>
-				</Modal>
+				</div>
 			)}
-		</>
+		</div>
 	);
 };
 
-export default Table;
+export default TransactionsTable;
