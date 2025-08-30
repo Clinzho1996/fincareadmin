@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 
 import Modal from "@/components/Modal";
-import TabCard from "@/components/TabCard";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,7 +34,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import axios from "axios";
 import {
 	ChevronLeft,
@@ -85,7 +84,13 @@ export function StaffDataTable<TData, TValue>({
 	const [isModalOpen, setModalOpen] = useState(false);
 	const [tableData, setTableData] = useState<TData[]>(data);
 	const [isLoading, setIsLoading] = useState(false);
+	const [permissions, setPermissions] = useState<string[]>([]);
 
+	const handlePermissionToggle = (perm: string) => {
+		setPermissions((prev) =>
+			prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
+		);
+	};
 	const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
 	// State for form inputs
@@ -155,7 +160,7 @@ export function StaffDataTable<TData, TValue>({
 				status: string;
 				message: string;
 				data: ApiResponse[];
-			}>("https://api.wowdev.com.ng/api/v1/user", {
+			}>("api/admin/users", {
 				headers: {
 					Accept: "application/json",
 					Authorization: `Bearer ${accessToken}`,
@@ -198,23 +203,18 @@ export function StaffDataTable<TData, TValue>({
 			}
 
 			const payload = {
-				staff_code: staffId,
 				first_name: firstName,
 				last_name: lastName,
 				email: email,
 				role: role,
 			};
 
-			const response = await axios.post(
-				"https://api.wowdev.com.ng/api/v1/user/create",
-				payload,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
+			const response = await axios.post("/api/admin/users", payload, {
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${accessToken}`,
+				},
+			});
 
 			if (response.status === 200 || response.status === 201) {
 				await fetchStaffs();
@@ -366,18 +366,26 @@ export function StaffDataTable<TData, TValue>({
 
 	return (
 		<div className="rounded-lg border-[1px] py-0">
-			<Modal isOpen={isModalOpen} onClose={closeModal} title="Add Staff">
-				<div className="bg-white p-0 rounded-lg  transition-transform ease-in-out form">
-					<div className="mt-3  pt-2">
+			<Modal isOpen={isModalOpen} onClose={closeModal} title="Add Admin User">
+				<div className="bg-white p-0 rounded-lg transition-transform ease-in-out form">
+					<div className="mt-3 pt-2">
 						<div className="flex flex-col gap-2">
 							<p className="text-xs text-primary-6">Full Name</p>
 							<Input
 								type="text"
-								placeholder="Enter Full Name"
+								placeholder="Enter First Name"
 								className="focus:border-none mt-2"
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
 							/>
+							<Input
+								type="text"
+								placeholder="Enter Last Name"
+								className="focus:border-none mt-2"
+								value={lastName}
+								onChange={(e) => setLastName(e.target.value)}
+							/>
+
 							<p className="text-xs text-primary-6 mt-2">Email Address</p>
 							<Input
 								type="text"
@@ -386,37 +394,36 @@ export function StaffDataTable<TData, TValue>({
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
 							/>
-							<p className="text-xs text-primary-6 mt-2">Phone number</p>
-							<Input
-								type="text"
-								placeholder="Enter Phone Number"
-								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">Gender</p>
-							<Select>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select gender" />
-								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="light">Male</SelectItem>
-									<SelectItem value="dark">Female</SelectItem>
-								</SelectContent>
-							</Select>
+
 							<p className="text-xs text-primary-6 mt-2">Role</p>
-							<Select>
+							<Select value={role} onValueChange={setRole}>
 								<SelectTrigger className="w-full">
 									<SelectValue placeholder="Select Role" />
 								</SelectTrigger>
 								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="light">Admin</SelectItem>
-									<SelectItem value="dark">Customer Support</SelectItem>
-									<SelectItem value="system">Finance</SelectItem>
+									<SelectItem value="super_admin">Super Admin</SelectItem>
+									<SelectItem value="admin">Admin</SelectItem>
+									<SelectItem value="support">Support</SelectItem>
 								</SelectContent>
 							</Select>
 
-						
+							<p className="text-xs text-primary-6 mt-2">Permissions</p>
+							<div className="flex flex-wrap gap-2">
+								{[
+									"users:read",
+									"users:write",
+									"transactions:read",
+									"transactions:write",
+								].map((perm) => (
+									<Button
+										key={perm}
+										variant={permissions.includes(perm) ? "default" : "outline"}
+										className="text-xs"
+										onClick={() => handlePermissionToggle(perm)}>
+										{perm}
+									</Button>
+								))}
+							</div>
 						</div>
 						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 						<div className="flex flex-row justify-end items-center gap-3 font-inter">
@@ -429,41 +436,14 @@ export function StaffDataTable<TData, TValue>({
 								className="bg-primary-1 text-white font-inter text-xs"
 								onClick={handleAddStaff}
 								disabled={isLoading}>
-								{isLoading ? "Adding Staff..." : "Add Staff"}
+								{isLoading ? "Adding User..." : "Add User"}
 							</Button>
 						</div>
 					</div>
 				</div>
 			</Modal>
-			<div
-				className="bg-white flex flex-row border-b-[1px] border-[#E2E4E9] justify-between items-center p-3"
-				style={{
-					borderTopLeftRadius: "0.5rem",
-					borderTopRightRadius: "0.5rem",
-				}}>
-				<div className="flex flex-row justify-start items-center gap-3">
-					<TabCard
-						title="Total Staff"
-						value={50}
-						icon="/images/totalstaff.png"
-					/>
-					<TabCard
-						title="Suspended Staff"
-						value={12}
-						icon="/images/leave.png"
-					/>
-					<TabCard title="Active Staff" value={38} icon="/images/all.png" />
-				</div>
-				<div className="flex flex-row justify-start items-center gap-3 font-inter">
-					<Button
-						className="bg-primary-1 text-white font-inter"
-						onClick={openModal}>
-						<IconPlus /> Add New Staff
-					</Button>
-				</div>
-			</div>
 
-			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full">
+			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full rounded-lg">
 				<div className="flex flex-row justify-start bg-white items-center rounded-lg mx-auto special-btn-farmer pr-2">
 					{["View All", "Active", "Inactive"].map((status, index, arr) => (
 						<p
@@ -485,16 +465,17 @@ export function StaffDataTable<TData, TValue>({
 						placeholder="Search Staff..."
 						value={globalFilter}
 						onChange={(e) => setGlobalFilter(e.target.value)}
-						className="focus:border-none bg-[#F9FAFB]"
+						className="focus:border-none bg-[#F9FAFB] w-full"
 					/>
-					<Button
-						className="border-[#E8E8E8] border-[1px] bg-white"
-						onClick={bulkDeleteStaff}>
-						<IconTrash /> Delete
-					</Button>
+
 					<div className="w-[250px]">
 						<DateRangePicker dateRange={dateRange} onSelect={setDateRange} />
 					</div>
+					<Button
+						className="bg-primary-1 text-white font-inter"
+						onClick={openModal}>
+						<IconPlus /> Add New Staff
+					</Button>
 				</div>
 			</div>
 

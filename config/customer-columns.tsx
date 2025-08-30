@@ -23,37 +23,34 @@ import {
 } from "@/components/ui/select";
 import { IconEdit, IconEye, IconTrash } from "@tabler/icons-react";
 import axios from "axios";
-import { getSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { CustomerDataTable } from "./customer-table";
 
 // This type is used to define the shape of our data.
-export type Staff = {
-	id: string;
-	name?: string;
-	date: string;
-	role: string;
-	staff: string;
-	status?: string;
+export type Customer = {
+	_id: string;
+	firstName: string;
+	lastName: string;
+	otherName?: string;
 	email: string;
+	phone: string;
+	totalSavings: number;
+	totalInvestment: number;
+	totalLoans: number;
+	totalAuctions: number;
+	membershipLevel: string;
+	membershipStatus: string;
+	isMember: string;
+	createdAt: string;
+	updatedAt: string;
+	address?: string;
+	gender?: string;
+	accountNumber?: string;
+	bank?: string;
 };
-
-interface ApiResponse {
-	id: string;
-	first_name: string;
-	last_name: string;
-	email: string;
-	picture: string | null;
-	staff_code: string;
-	role: string;
-	is_active: boolean;
-	last_logged_in: string | null;
-	created_at: string;
-	updated_at: string;
-	status?: string;
-}
 
 declare module "next-auth" {
 	interface Session {
@@ -62,78 +59,45 @@ declare module "next-auth" {
 }
 
 const CustomerTable = () => {
+	const { data: session } = useSession();
+	const accessToken = session?.accessToken;
 	const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
 	const [isReactivateModalOpen, setReactivateModalOpen] = useState(false);
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
 	const [selectedRow, setSelectedRow] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
-	const [tableData, setTableData] = useState<Staff[]>([]);
+	const [tableData, setTableData] = useState<Customer[]>([]);
 	const [isEditModalOpen, setEditModalOpen] = useState(false);
 	const [editData, setEditData] = useState({
 		id: "",
 		firstName: "",
 		lastName: "",
 		email: "",
-		staffId: "",
-		role: "super_admin",
+		phone: "",
+		address: "",
+		gender: "",
+		accountNumber: "",
+		bank: "",
 	});
 
 	const openEditModal = (row: any) => {
-		const staff = row.original;
+		const customer = row.original;
 		setEditData({
-			id: staff.id,
-			firstName: staff.name?.split(" ")[0] || "",
-			lastName: staff.name?.split(" ")[1] || "",
-			email: staff.email,
-			staffId: staff.staff,
-			role: staff.role,
+			id: customer._id,
+			firstName: customer.firstName || "",
+			lastName: customer.lastName || "",
+			email: customer.email || "",
+			phone: customer.phone || "",
+			address: customer.address || "",
+			gender: customer.gender || "",
+			accountNumber: customer.accountNumber || "",
+			bank: customer.bank || "",
 		});
 		setEditModalOpen(true);
 	};
 
 	const closeEditModal = () => {
 		setEditModalOpen(false);
-	};
-
-	const handleEditStaff = async () => {
-		try {
-			setIsLoading(true);
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.post(
-				`https://api.wowdev.com.ng/api/v1/user/${editData.id}`,
-				{
-					first_name: editData.firstName,
-					last_name: editData.lastName,
-					email: editData.email,
-					staff_code: editData.staffId,
-					role: editData.role,
-				},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				toast.success("Staff updated successfully.");
-				fetchStaffs(); // Refresh the table data
-				closeEditModal();
-			}
-		} catch (error) {
-			console.error("Error updating staff:", error);
-			toast.error("Failed to update staff. Please try again.");
-		} finally {
-			setIsLoading(false);
-		}
 	};
 
 	const openRestoreModal = (row: any) => {
@@ -163,160 +127,143 @@ const CustomerTable = () => {
 		setDeleteModalOpen(false);
 	};
 
-	const fetchStaffs = async () => {
+	// -------------- Fetch Customers --------------
+	const fetchCustomers = async () => {
+		if (!accessToken) return;
+
 		try {
 			setIsLoading(true);
-			const session = await getSession();
+			const response = await fetch("/api/admin/customers", {
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
+			});
 
-			console.log("session", session);
+			const result = await response.json();
 
-			const accessToken = session?.accessToken;
-			if (!accessToken) {
-				console.error("No access token found.");
-				setIsLoading(false);
-				return;
-			}
-
-			const response = await axios.get(
-				"https://api.comicscrolls.com/api/v1/user/role?type=reader",
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${session?.accessToken}`,
-					},
-				}
-			);
-
-			if (response.data.status === "success") {
-				// Map the API response to match the `Readers` type
-				const formattedData = response.data.data.map((reader: any) => ({
-					id: reader.id,
-					name: reader.full_name,
-					date: reader.created_at,
-					bookRead: reader.books_read,
-					subStatus: reader.is_premium ? "subscribed" : "free",
-					status: reader.is_blocked ? "inactive" : "active",
-					email: reader.email,
-				}));
-
-				setTableData(formattedData);
-
-				console.log("Readers Data:", formattedData);
+			if (result.status === "success") {
+				setTableData(result.customers);
 			}
 		} catch (error) {
-			console.error("Error fetching user data:", error);
+			console.error("Error fetching customers:", error);
+			toast.error("Failed to fetch customers.");
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
+	// -------------- Edit Customer --------------
+	const handleEditCustomer = async () => {
+		if (!accessToken) return;
+
+		try {
+			setIsLoading(true);
+			await axios.put(
+				`/api/admin/customers/${editData.id}`,
+				{
+					firstName: editData.firstName,
+					lastName: editData.lastName,
+					email: editData.email,
+					phone: editData.phone,
+					address: editData.address,
+					gender: editData.gender,
+					accountNumber: editData.accountNumber,
+					bank: editData.bank,
+				},
+				{
+					headers: { Authorization: `Bearer ${accessToken}` },
+				}
+			);
+			toast.success("Customer updated successfully.");
+			fetchCustomers();
+			setEditModalOpen(false);
+		} catch (error) {
+			console.error("Error updating customer:", error);
+			toast.error("Failed to update customer.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	// -------------- Delete Customer --------------
+	const deleteCustomer = async (id: string) => {
+		if (!accessToken) return;
+
+		try {
+			await axios.delete(`/api/admin/customers/${id}`, {
+				headers: { Authorization: `Bearer ${accessToken}` },
+			});
+			setTableData((prev) => prev.filter((customer) => customer._id !== id));
+			toast.success("Customer deleted successfully.");
+		} catch (error) {
+			console.error("Error deleting customer:", error);
+			toast.error("Failed to delete customer.");
+		}
+	};
+
+	// -------------- Suspend Customer --------------
+	const suspendCustomer = async (id: string) => {
+		if (!accessToken) return;
+
+		try {
+			await axios.patch(
+				`/api/admin/customers/${id}`,
+				{ action: "suspend" },
+				{
+					headers: { Authorization: `Bearer ${accessToken}` },
+				}
+			);
+			setTableData((prev) =>
+				prev.map((customer) =>
+					customer._id === id
+						? { ...customer, membershipStatus: "suspended" }
+						: customer
+				)
+			);
+			toast.success("Customer suspended successfully.");
+		} catch (error) {
+			console.error("Error suspending customer:", error);
+			toast.error("Failed to suspend customer.");
+		}
+	};
+
+	// -------------- Reactivate Customer --------------
+	const reactivateCustomer = async (id: string) => {
+		if (!accessToken) return;
+
+		try {
+			await axios.patch(
+				`/api/admin/customers/${id}`,
+				{ action: "reactivate" },
+				{
+					headers: { Authorization: `Bearer ${accessToken}` },
+				}
+			);
+			setTableData((prev) =>
+				prev.map((customer) =>
+					customer._id === id
+						? { ...customer, membershipStatus: "approved" }
+						: customer
+				)
+			);
+			toast.success("Customer reactivated successfully.");
+		} catch (error) {
+			console.error("Error reactivating customer:", error);
+			toast.error("Failed to reactivate customer.");
+		}
+	};
+
 	useEffect(() => {
-		fetchStaffs();
-	}, []);
-
-	const deleteStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.delete(
-				`https://api.wowdev.com.ng/api/v1/user/${id}`,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Remove the deleted staff from the table
-				setTableData((prevData) => prevData.filter((staff) => staff.id !== id));
-
-				toast.success("Staff deleted successfully.");
-			}
-		} catch (error) {
-			console.error("Error deleting staff:", error);
+		if (accessToken) {
+			fetchCustomers();
 		}
-	};
+	}, [accessToken]);
 
-	const suspendStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.put(
-				`https://api.wowdev.com.ng/api/v1/user/suspend/${id}`,
-				{},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Update the staff status in the table
-				setTableData((prevData) =>
-					prevData.map((staff) =>
-						staff.id === id ? { ...staff, status: "inactive" } : staff
-					)
-				);
-
-				toast.success("Staff suspended successfully.");
-			}
-		} catch (error) {
-			console.error("Error suspending staff:", error);
-			toast.error("Failed to suspend staff. Please try again.");
-		}
-	};
-
-	const reactivateStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.put(
-				`https://api.wowdev.com.ng/api/v1/user/reactivate/${id}`,
-				{},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Update the staff status in the table
-				setTableData((prevData) =>
-					prevData.map((staff) =>
-						staff.id === id ? { ...staff, status: "active" } : staff
-					)
-				);
-
-				toast.success("Staff reactivated successfully.");
-			}
-		} catch (error) {
-			console.error("Error suspending staff:", error);
-			toast.error("Failed to reactivate staff. Please try again.");
-		}
+	const formatCurrency = (amount: number) => {
+		return new Intl.NumberFormat("en-NG", {
+			style: "currency",
+			currency: "NGN",
+		}).format(amount);
 	};
 
 	const formatDate = (rawDate: string | Date) => {
@@ -330,7 +277,7 @@ const CustomerTable = () => {
 		return new Intl.DateTimeFormat("en-US", options).format(parsedDate);
 	};
 
-	const columns: ColumnDef<Staff>[] = [
+	const columns: ColumnDef<Customer>[] = [
 		{
 			id: "select",
 			header: ({ table }) => (
@@ -357,58 +304,60 @@ const CustomerTable = () => {
 			accessorKey: "name",
 			header: "Customer Name",
 			cell: ({ row }) => {
-				if (!row) return null; // or return a placeholder
-				const name = row.getValue<string>("name") || "N/A";
+				const customer = row.original;
+				const name = `${customer.firstName} ${customer.lastName}${
+					customer.otherName ? ` ${customer.otherName}` : ""
+				}`;
 				return (
 					<span className="text-xs text-black capitalize t-data">{name}</span>
 				);
 			},
 		},
-
 		{
-			accessorKey: "date",
+			accessorKey: "address",
 			header: "Home Address",
 			cell: ({ row }) => {
-				const rawDate = row.original.date;
-				const date = new Date(rawDate); // ✅ Convert it to a Date object
-
+				const address = row.original.address || "Not provided";
+				return <span className="text-xs text-primary-6">{address}</span>;
+			},
+		},
+		{
+			accessorKey: "totalSavings",
+			header: "Total Savings",
+			cell: ({ row }) => {
+				const savings = row.original.totalSavings || 0;
 				return (
-					<span className="text-xs text-primary-6">{formatDate(date)}</span>
+					<span className="text-xs text-primary-6">
+						{formatCurrency(savings)}
+					</span>
 				);
 			},
 		},
 		{
-			accessorKey: "staff",
-			header: "Total Savings",
-			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff") || "₦109,000";
-
-				return <span className="text-xs text-primary-6">{staff}</span>;
-			},
-		},
-		{
-			accessorKey: "staff",
+			accessorKey: "totalInvestment",
 			header: "Total Investments",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff") || "₦315,000";
-
-				return <span className="text-xs text-primary-6">{staff}</span>;
+				const investment = row.original.totalInvestment || 0;
+				return (
+					<span className="text-xs text-primary-6">
+						{formatCurrency(investment)}
+					</span>
+				);
 			},
 		},
 		{
-			accessorKey: "staff",
+			accessorKey: "phone",
 			header: "Phone No.",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff") || "+2348012345678";
-
-				return <span className="text-xs text-primary-6">{staff}</span>;
+				const phone = row.original.phone || "Not provided";
+				return <span className="text-xs text-primary-6">{phone}</span>;
 			},
 		},
 		{
 			id: "actions",
 			header: "Action",
 			cell: ({ row }) => {
-				const actions = row.original;
+				const customer = row.original;
 
 				return (
 					<DropdownMenu>
@@ -421,7 +370,7 @@ const CustomerTable = () => {
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="bg-white">
-							<Link href={`/customers/${actions.id}`}>
+							<Link href={`/customers/${customer._id}`}>
 								<DropdownMenuItem className="action cursor-pointer hover:bg-secondary-3">
 									<IconEye />
 									<p className="text-xs font-inter">View Customer</p>
@@ -464,7 +413,7 @@ const CustomerTable = () => {
 					<div className="bg-white p-0 rounded-lg  transition-transform ease-in-out form">
 						<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
 							<div className="flex flex-col gap-2">
-								<p className="text-xs text-primary-6">Full Name</p>
+								<p className="text-xs text-primary-6">First Name</p>
 								<Input
 									type="text"
 									className="focus:border-none mt-2"
@@ -473,7 +422,7 @@ const CustomerTable = () => {
 										setEditData({ ...editData, firstName: e.target.value })
 									}
 								/>
-								<p className="text-xs text-primary-6 mt-2">Email Address</p>
+								<p className="text-xs text-primary-6 mt-2">Last Name</p>
 								<Input
 									type="text"
 									className="focus:border-none mt-2"
@@ -482,13 +431,22 @@ const CustomerTable = () => {
 										setEditData({ ...editData, lastName: e.target.value })
 									}
 								/>
-								<p className="text-xs text-primary-6 mt-2">Phone Number</p>
+								<p className="text-xs text-primary-6 mt-2">Email Address</p>
 								<Input
-									type="text"
+									type="email"
 									className="focus:border-none mt-2"
 									value={editData.email}
 									onChange={(e) =>
 										setEditData({ ...editData, email: e.target.value })
+									}
+								/>
+								<p className="text-xs text-primary-6 mt-2">Phone Number</p>
+								<Input
+									type="text"
+									className="focus:border-none mt-2"
+									value={editData.phone}
+									onChange={(e) =>
+										setEditData({ ...editData, phone: e.target.value })
 									}
 								/>
 
@@ -496,19 +454,23 @@ const CustomerTable = () => {
 								<Input
 									type="text"
 									className="focus:border-none mt-2"
-									value={editData.email}
+									value={editData.address}
 									onChange={(e) =>
-										setEditData({ ...editData, email: e.target.value })
+										setEditData({ ...editData, address: e.target.value })
 									}
 								/>
 								<p className="text-xs text-primary-6 mt-2">Gender</p>
-								<Select>
+								<Select
+									value={editData.gender}
+									onValueChange={(value) =>
+										setEditData({ ...editData, gender: value })
+									}>
 									<SelectTrigger className="w-full">
 										<SelectValue placeholder="Select Gender" />
 									</SelectTrigger>
 									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="light">Male</SelectItem>
-										<SelectItem value="dark">Female</SelectItem>
+										<SelectItem value="male">Male</SelectItem>
+										<SelectItem value="female">Female</SelectItem>
 									</SelectContent>
 								</Select>
 								<p className="text-xs text-primary-6 mt-2">Account Number</p>
@@ -516,19 +478,24 @@ const CustomerTable = () => {
 									type="text"
 									placeholder="Enter Account Number"
 									className="focus:border-none mt-2"
+									value={editData.accountNumber}
 									onChange={(e) =>
-										setEditData({ ...editData, email: e.target.value })
+										setEditData({ ...editData, accountNumber: e.target.value })
 									}
 								/>
 								<p className="text-xs text-primary-6 mt-2">Bank</p>
-								<Select>
+								<Select
+									value={editData.bank}
+									onValueChange={(value) =>
+										setEditData({ ...editData, bank: value })
+									}>
 									<SelectTrigger className="w-full">
 										<SelectValue placeholder="Select Bank" />
 									</SelectTrigger>
 									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="light">FCMB</SelectItem>
-										<SelectItem value="dark">UBA</SelectItem>
-										<SelectItem value="system">Fidelity</SelectItem>
+										<SelectItem value="FCMB">FCMB</SelectItem>
+										<SelectItem value="UBA">UBA</SelectItem>
+										<SelectItem value="Fidelity">Fidelity</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
@@ -541,7 +508,7 @@ const CustomerTable = () => {
 								</Button>
 								<Button
 									className="bg-primary-1 text-white font-inter text-xs"
-									onClick={handleEditStaff}
+									onClick={handleEditCustomer}
 									disabled={isLoading}>
 									{isLoading ? "Updating..." : "Update Customer"}
 								</Button>
@@ -554,7 +521,8 @@ const CustomerTable = () => {
 			{isRestoreModalOpen && (
 				<Modal onClose={closeRestoreModal} isOpen={isRestoreModalOpen}>
 					<p className="mt-4">
-						Are you sure you want to suspend {selectedRow?.name}'s account?
+						Are you sure you want to suspend {selectedRow?.firstName}{" "}
+						{selectedRow?.lastName}'s account?
 					</p>
 					<p className="text-sm text-primary-6">This can't be undone</p>
 					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
@@ -566,7 +534,7 @@ const CustomerTable = () => {
 						<Button
 							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
 							onClick={async () => {
-								await suspendStaff(selectedRow.id);
+								await suspendCustomer(selectedRow._id);
 								closeRestoreModal();
 							}}>
 							Yes, Confirm
@@ -578,7 +546,8 @@ const CustomerTable = () => {
 			{isReactivateModalOpen && (
 				<Modal onClose={closeReactivateModal} isOpen={isReactivateModalOpen}>
 					<p className="mt-4">
-						Are you sure you want to reactivate {selectedRow?.name}'s account?
+						Are you sure you want to reactivate {selectedRow?.firstName}{" "}
+						{selectedRow?.lastName}'s account?
 					</p>
 					<p className="text-sm text-primary-6">This can't be undone</p>
 					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
@@ -590,7 +559,7 @@ const CustomerTable = () => {
 						<Button
 							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
 							onClick={async () => {
-								await reactivateStaff(selectedRow.id);
+								await reactivateCustomer(selectedRow._id);
 								closeReactivateModal();
 							}}>
 							Yes, Confirm
@@ -601,7 +570,10 @@ const CustomerTable = () => {
 
 			{isDeleteModalOpen && (
 				<Modal onClose={closeDeleteModal} isOpen={isDeleteModalOpen}>
-					<p>Are you sure you want to delete {selectedRow?.name}'s account?</p>
+					<p>
+						Are you sure you want to delete {selectedRow?.firstName}{" "}
+						{selectedRow?.lastName}'s account?
+					</p>
 
 					<p className="text-sm text-primary-6">This can't be undone</p>
 					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
@@ -613,7 +585,7 @@ const CustomerTable = () => {
 						<Button
 							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
 							onClick={async () => {
-								await deleteStaff(selectedRow.id);
+								await deleteCustomer(selectedRow._id);
 								closeDeleteModal();
 							}}>
 							Yes, Confirm

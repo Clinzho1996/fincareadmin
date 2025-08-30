@@ -8,10 +8,6 @@ export const sidebarLinks = [
 		label: "Staff Management",
 		route: "/staff-management/all",
 		imgUrl: "/icons/staff.svg",
-		subLinks: [
-			{ label: "All Staff", route: "/staff-management/all" },
-			{ label: "Roles", route: "/staff-management/roles" },
-		],
 	},
 
 	{

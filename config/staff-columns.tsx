@@ -15,13 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
 	IconEdit,
 	IconEye,
 	IconRestore,
@@ -29,7 +22,6 @@ import {
 	IconUserPause,
 } from "@tabler/icons-react";
 import axios from "axios";
-import { getSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -102,47 +94,6 @@ const StaffTable = () => {
 		setEditModalOpen(false);
 	};
 
-	const handleEditStaff = async () => {
-		try {
-			setIsLoading(true);
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.post(
-				`https://api.wowdev.com.ng/api/v1/user/${editData.id}`,
-				{
-					first_name: editData.firstName,
-					last_name: editData.lastName,
-					email: editData.email,
-					staff_code: editData.staffId,
-					role: editData.role,
-				},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				toast.success("Staff updated successfully.");
-				fetchStaffs(); // Refresh the table data
-				closeEditModal();
-			}
-		} catch (error) {
-			console.error("Error updating staff:", error);
-			toast.error("Failed to update staff. Please try again.");
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
 	const openRestoreModal = (row: any) => {
 		setSelectedRow(row.original);
 		setRestoreModalOpen(true);
@@ -173,158 +124,93 @@ const StaffTable = () => {
 	const fetchStaffs = async () => {
 		try {
 			setIsLoading(true);
-			const session = await getSession();
+			const response = await fetch("/api/admin/users");
+			const result = await response.json();
 
-			console.log("session", session);
-
-			const accessToken = session?.accessToken;
-			if (!accessToken) {
-				console.error("No access token found.");
-				setIsLoading(false);
-				return;
-			}
-
-			const response = await axios.get(
-				"https://api.comicscrolls.com/api/v1/user/role?type=reader",
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${session?.accessToken}`,
-					},
-				}
-			);
-
-			if (response.data.status === "success") {
-				// Map the API response to match the `Readers` type
-				const formattedData = response.data.data.map((reader: any) => ({
-					id: reader.id,
-					name: reader.full_name,
-					date: reader.created_at,
-					bookRead: reader.books_read,
-					subStatus: reader.is_premium ? "subscribed" : "free",
-					status: reader.is_blocked ? "inactive" : "active",
-					email: reader.email,
+			if (result.status === "success") {
+				const formattedData = result.data.map((admin: any) => ({
+					id: admin._id,
+					name: admin.name,
+					email: admin.email,
+					role: admin.role,
+					staff: admin.staff_code || "N/A",
+					status: admin.isActive ? "active" : "inactive",
+					date: admin.createdAt,
 				}));
-
 				setTableData(formattedData);
-
-				console.log("Readers Data:", formattedData);
 			}
 		} catch (error) {
-			console.error("Error fetching user data:", error);
+			console.error("Error fetching admins:", error);
+			toast.error("Failed to fetch staff.");
 		} finally {
 			setIsLoading(false);
+		}
+	};
+
+	const handleEditStaff = async () => {
+		try {
+			setIsLoading(true);
+			await axios.put(`/api/admin/users/${editData.id}`, {
+				name: `${editData.firstName} ${editData.lastName}`,
+				email: editData.email,
+				role: editData.role,
+				staff_code: editData.staffId,
+			});
+			toast.success("Staff updated successfully.");
+			fetchStaffs();
+			closeEditModal();
+		} catch (error) {
+			console.error("Error updating staff:", error);
+			toast.error("Failed to update staff.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const deleteStaff = async (id: string) => {
+		try {
+			await axios.delete(`/api/admin/users/${id}`);
+			setTableData((prev) => prev.filter((staff) => staff.id !== id));
+			toast.success("Staff deleted successfully.");
+		} catch (error) {
+			console.error("Error deleting staff:", error);
+			toast.error("Failed to delete staff.");
+		}
+	};
+
+	const suspendStaff = async (id: string) => {
+		try {
+			await axios.patch(`/api/admin/users/${id}`, { action: "suspend" });
+			setTableData((prev) =>
+				prev.map((staff) =>
+					staff.id === id ? { ...staff, status: "inactive" } : staff
+				)
+			);
+			toast.success("Staff suspended successfully.");
+		} catch (error) {
+			console.error("Error suspending staff:", error);
+			toast.error("Failed to suspend staff.");
+		}
+	};
+
+	const reactivateStaff = async (id: string) => {
+		try {
+			await axios.patch(`/api/admin/users/${id}`, { action: "reactivate" });
+			setTableData((prev) =>
+				prev.map((staff) =>
+					staff.id === id ? { ...staff, status: "active" } : staff
+				)
+			);
+			toast.success("Staff reactivated successfully.");
+		} catch (error) {
+			console.error("Error reactivating staff:", error);
+			toast.error("Failed to reactivate staff.");
 		}
 	};
 
 	useEffect(() => {
 		fetchStaffs();
 	}, []);
-
-	const deleteStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.delete(
-				`https://api.wowdev.com.ng/api/v1/user/${id}`,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Remove the deleted staff from the table
-				setTableData((prevData) => prevData.filter((staff) => staff.id !== id));
-
-				toast.success("Staff deleted successfully.");
-			}
-		} catch (error) {
-			console.error("Error deleting staff:", error);
-		}
-	};
-
-	const suspendStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.put(
-				`https://api.wowdev.com.ng/api/v1/user/suspend/${id}`,
-				{},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Update the staff status in the table
-				setTableData((prevData) =>
-					prevData.map((staff) =>
-						staff.id === id ? { ...staff, status: "inactive" } : staff
-					)
-				);
-
-				toast.success("Staff suspended successfully.");
-			}
-		} catch (error) {
-			console.error("Error suspending staff:", error);
-			toast.error("Failed to suspend staff. Please try again.");
-		}
-	};
-
-	const reactivateStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.put(
-				`https://api.wowdev.com.ng/api/v1/user/reactivate/${id}`,
-				{},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Update the staff status in the table
-				setTableData((prevData) =>
-					prevData.map((staff) =>
-						staff.id === id ? { ...staff, status: "active" } : staff
-					)
-				);
-
-				toast.success("Staff reactivated successfully.");
-			}
-		} catch (error) {
-			console.error("Error suspending staff:", error);
-			toast.error("Failed to reactivate staff. Please try again.");
-		}
-	};
 
 	const formatDate = (rawDate: string | Date) => {
 		const options: Intl.DateTimeFormatOptions = {
@@ -361,43 +247,42 @@ const StaffTable = () => {
 			),
 		},
 		{
-			accessorKey: "name",
-			header: "Name",
+			id: "user", // custom id since we are showing multiple fields
+			header: "User",
 			cell: ({ row }) => {
-				if (!row) return null; // or return a placeholder
-				const name = row.getValue<string>("name") || "N/A";
-				const email = row.getValue<string>("email") || "N/A";
+				const { name, email } = row.original; // grab full user object
 				return (
 					<div className="flex flex-row justify-start items-center gap-2">
 						<Image
 							src="/images/avatar.png"
-							alt={name}
+							alt={name || "User"}
 							width={40}
 							height={40}
 							className="w-10 h-10 rounded-full"
 						/>
 						<div className="flex flex-col">
-							<span className="text-xs text-primary-6">{name}</span>
-							<span className="text-xs text-primary-6">{email}</span>
+							<span className="text-xs text-primary-6">{name || "N/A"}</span>
+							<span className="text-xs text-primary-6">{email || "N/A"}</span>
 						</div>
 					</div>
 				);
 			},
 		},
+
 		{
-			accessorKey: "staff",
+			accessorKey: "id",
 			header: "Staff Code",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff") || "FIN0001";
+				const staff = row.getValue<string>("id") || "FIN0001";
 
 				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
 		},
 		{
-			accessorKey: "date",
+			accessorKey: "role",
 			header: "Role (s)",
 			cell: ({ row }) => {
-				const staff = row.getValue<string>("staff") || "Admin";
+				const staff = row.getValue<string>("role");
 
 				return <span className="text-xs text-primary-6">{staff}</span>;
 			},
@@ -512,7 +397,7 @@ const StaffTable = () => {
 					<div className="bg-white p-0 rounded-lg  transition-transform ease-in-out form">
 						<div className="mt-3  pt-2">
 							<div className="flex flex-col gap-2">
-								<p className="text-xs text-primary-6">Full Name</p>
+								<p className="text-xs text-primary-6">First Name</p>
 								<Input
 									type="text"
 									placeholder="Enter Full Name"
@@ -520,6 +405,17 @@ const StaffTable = () => {
 									value={editData.firstName}
 									onChange={(e) =>
 										setEditData({ ...editData, firstName: e.target.value })
+									}
+								/>
+
+								<p className="text-xs text-primary-6">Last Name</p>
+								<Input
+									type="text"
+									placeholder="Enter Full Name"
+									className="focus:border-none mt-2"
+									value={editData.lastName}
+									onChange={(e) =>
+										setEditData({ ...editData, lastName: e.target.value })
 									}
 								/>
 								<p className="text-xs text-primary-6 mt-2">Email Address</p>
@@ -532,48 +428,6 @@ const StaffTable = () => {
 										setEditData({ ...editData, email: e.target.value })
 									}
 								/>
-								<p className="text-xs text-primary-6 mt-2">Phone number</p>
-								<Input
-									type="text"
-									placeholder="Enter Phone Number"
-									className="focus:border-none mt-2"
-									value={editData.lastName}
-									onChange={(e) =>
-										setEditData({ ...editData, lastName: e.target.value })
-									}
-								/>
-								<p className="text-xs text-primary-6 mt-2">Gender</p>
-								<Select>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select gender" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="light">Male</SelectItem>
-										<SelectItem value="dark">Female</SelectItem>
-									</SelectContent>
-								</Select>
-								<p className="text-xs text-primary-6 mt-2">Role</p>
-								<Select>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select Role" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="light">Admin</SelectItem>
-										<SelectItem value="dark">Customer Support</SelectItem>
-										<SelectItem value="system">Finance</SelectItem>
-									</SelectContent>
-								</Select>
-								<p className="text-xs text-primary-6 mt-2">Grade Level</p>
-								<Select>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select level" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="light">11</SelectItem>
-										<SelectItem value="dark">12</SelectItem>
-										<SelectItem value="system">13</SelectItem>
-									</SelectContent>
-								</Select>
 							</div>
 							<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 							<div className="flex flex-row justify-end items-center gap-3 font-inter">

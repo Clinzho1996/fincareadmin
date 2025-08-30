@@ -23,7 +23,6 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -342,31 +341,37 @@ const TransactionsTable = () => {
 								<MoreHorizontal className="h-4 w-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="bg-white">
+						<DropdownMenuContent
+							align="end"
+							className="bg-white flex flex-col gap-2">
 							<DropdownMenuLabel>Actions</DropdownMenuLabel>
-							<DropdownMenuItem onClick={() => handleViewDetails(transaction)}>
+							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-blue-100 text-xs font-inter"
+								onClick={() => handleViewDetails(transaction)}>
 								<Eye className="mr-2 h-4 w-4" />
 								View Details
 							</DropdownMenuItem>
-							<DropdownMenuSeparator />
 							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-blue-100 text-xs font-inter"
 								onClick={() => navigator.clipboard.writeText(transaction._id)}>
 								Copy ID
 							</DropdownMenuItem>
 							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-blue-100 text-xs font-inter"
 								onClick={() =>
 									navigator.clipboard.writeText(transaction.reference)
 								}>
 								Copy Reference
 							</DropdownMenuItem>
-							<DropdownMenuSeparator />
 							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-blue-100 text-xs font-inter"
 								onClick={() =>
 									handleStatusUpdate(transaction._id, "completed")
 								}>
 								Mark as Completed
 							</DropdownMenuItem>
 							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-blue-100 text-xs font-inter"
 								onClick={() => handleStatusUpdate(transaction._id, "failed")}>
 								Mark as Failed
 							</DropdownMenuItem>
