@@ -55,7 +55,9 @@ export async function POST(request) {
 		const result = await db.collection("admin_users").insertOne(newAdmin);
 
 		// Remove password from response
-		const { password: _, ...adminWithoutPassword } = newAdmin;
+		// Remove password from response
+		const adminWithoutPassword = { ...newAdmin };
+		delete adminWithoutPassword.password;
 
 		return NextResponse.json(
 			{

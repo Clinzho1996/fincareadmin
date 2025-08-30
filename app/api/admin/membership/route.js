@@ -1,5 +1,5 @@
 // app/api/admin/membership/route.js
-import { adminOnly } from "@/lib/middleware";
+import { admin } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 // GET - Get all membership applications
 export async function GET(request) {
 	try {
-		const authResult = await adminOnly(request);
+		const authResult = await admin(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },

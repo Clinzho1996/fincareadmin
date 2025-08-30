@@ -56,9 +56,9 @@ const Sidebar = () => {
 							<Image
 								src="/images/icon.png"
 								alt="profile"
-								className="object-cover w-full h-full lg:w-[40px] lg:h-[42px] rounded-full"
-								width={30}
-								height={30}
+								className="object-cover w-full h-full sm:w-[40px] sm:h-[40px] rounded-full"
+								width={80}
+								height={80}
 							/>
 							<h2 className="text-white ">Fincare CMS</h2>
 						</Link>
@@ -223,9 +223,9 @@ const Sidebar = () => {
 							<Image
 								src="/images/icon.png"
 								alt="profile"
-								className="object-cover w-full h-full lg:w-[40px] lg:h-[42px] rounded-full"
-								width={30}
-								height={30}
+								className="object-cover w-[40px] h-[40px] sm:w-[40px] sm:h-[40px] rounded-full"
+								width={80}
+								height={80}
 							/>
 						</div>
 						<div className="lg:block">
