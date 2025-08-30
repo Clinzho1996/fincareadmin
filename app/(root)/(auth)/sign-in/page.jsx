@@ -1,31 +1,32 @@
+// app/admin/login/page.js
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
-export default function SignIn() {
-	const { status } = useSession();
+export default function AdminLogin() {
+	const { data: session, status } = useSession();
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [showPassword, setShowPassword] = useState(false);
 
-	// Get callbackUrl from search params or default to '/'
 	const callbackUrl = searchParams.get("callbackUrl") || "/";
-
 	const [form, setForm] = useState({ email: "", password: "" });
 	const [isLoading, setIsLoading] = useState(false);
 
 	useEffect(() => {
-		if (status === "authenticated") {
-			toast.success("Login Successful!");
+		if (
+			status === "authenticated" &&
+			(session?.user?.role === "admin" || session?.user?.role === "super_admin")
+		) {
+			toast.success("Admin login successful!");
 			router.push(callbackUrl);
 		}
-	}, [status, callbackUrl, router]);
+	}, [status, session, callbackUrl, router]);
 
 	const handleSubmit = async (event) => {
 		event.preventDefault();
@@ -38,21 +39,21 @@ export default function SignIn() {
 		setIsLoading(true);
 
 		try {
-			const result = await signIn("credentials", {
+			const result = await signIn("admin-credentials", {
 				redirect: false,
 				email: form.email,
 				password: form.password,
 				callbackUrl,
 			});
 
-			console.log("SIGNIN RESULT:", result);
-
 			if (result?.error) {
 				toast.error(result.error);
+			} else if (result?.ok) {
+				toast.success("Login successful!");
 			}
 		} catch (error) {
 			toast.error("Login failed. Please try again.");
-			console.log(error);
+			console.error("Login error:", error);
 		} finally {
 			setIsLoading(false);
 		}
@@ -70,7 +71,7 @@ export default function SignIn() {
 							width={30}
 							height={30}
 						/>
-						<h2 className="text-white text-xl font-normal">Fincare CMS</h2>
+						<h2 className="text-white text-xl font-normal">Fincare Admin</h2>
 					</div>
 
 					<p className="text-[32px] font-medium text-white text-left mt-2 font-inter">
@@ -78,7 +79,7 @@ export default function SignIn() {
 					</p>
 
 					<p className="text-[20px] font-normal text-white text-left font-inter">
-						Enter your details to log in to your dashboard
+						Enter your details to access the admin dashboard
 					</p>
 					<form className="w-full mt-6" onSubmit={handleSubmit}>
 						<div className="mb-4">
@@ -87,7 +88,7 @@ export default function SignIn() {
 							</label>
 							<input
 								type="email"
-								placeholder="Enter your email"
+								placeholder="Enter admin email"
 								value={form.email}
 								onChange={(e) => setForm({ ...form, email: e.target.value })}
 								className="w-full bg-[#126aa14f] text-white text-sm rounded-lg p-2 border border-[#0000000D] placeholder:text-[#C6DCEA] focus:outline-none focus:border-primary mt-1 shadow-inner h-[50px]"
@@ -102,7 +103,7 @@ export default function SignIn() {
 							<div className="relative">
 								<input
 									type={showPassword ? "text" : "password"}
-									placeholder="Enter your password"
+									placeholder="Enter admin password"
 									value={form.password}
 									onChange={(e) =>
 										setForm({ ...form, password: e.target.value })
@@ -116,14 +117,6 @@ export default function SignIn() {
 									onClick={() => setShowPassword(!showPassword)}>
 									{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
 								</button>
-							</div>
-						</div>
-
-						<div className="flex flex-row justify-end items-center mt-2">
-							<div>
-								<Link href="/forgot-password" className=" text-white underline">
-									Forgot Password?
-								</Link>
 							</div>
 						</div>
 

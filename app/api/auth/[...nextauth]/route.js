@@ -1,10 +1,12 @@
+// app/api/auth/[...nextauth]/route.js
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 const handler = NextAuth({
 	providers: [
 		CredentialsProvider({
-			name: "Credentials",
+			id: "admin-credentials",
+			name: "Admin Credentials",
 			credentials: {
 				email: { label: "Email", type: "text" },
 				password: { label: "Password", type: "password" },
@@ -12,8 +14,10 @@ const handler = NextAuth({
 			async authorize(credentials) {
 				try {
 					const { email, password } = credentials;
+
+					// Call our admin login API
 					const res = await fetch(
-						`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/signin`,
+						`${process.env.NEXTAUTH_URL}/api/admin/auth/login`,
 						{
 							method: "POST",
 							body: JSON.stringify({ email, password }),
@@ -22,24 +26,24 @@ const handler = NextAuth({
 					);
 
 					const data = await res.json();
-					console.log("Auth Response:", data); // Log the response
 
 					// Ensure the request was successful
 					if (!res.ok || data.status !== "success") {
-						console.error("Authentication failed:", data.message);
+						console.error("Admin authentication failed:", data.error);
 						return null;
 					}
 
 					// Return a properly structured user object
 					return {
-						id: data.data.id,
-						name: data.data.full_name,
-						email: data.data.email,
-						role: data.data.role,
-						accessToken: data.token,
+						id: data.data.admin._id,
+						name: data.data.admin.name,
+						email: data.data.admin.email,
+						role: data.data.admin.role,
+						permissions: data.data.admin.permissions,
+						accessToken: data.data.token,
 					};
 				} catch (error) {
-					console.error("Error in authorize function:", error);
+					console.error("Error in admin authorize function:", error);
 					return null;
 				}
 			},
@@ -48,17 +52,33 @@ const handler = NextAuth({
 	callbacks: {
 		async jwt({ token, user }) {
 			if (user) {
-				token.accessToken = user.accessToken; // Store the access token in the JWT
+				token.accessToken = user.accessToken;
+				token.role = user.role;
+				token.permissions = user.permissions;
 			}
 			return token;
 		},
 		async session({ session, token }) {
-			session.accessToken = token.accessToken; // Attach the token to the session
+			session.accessToken = token.accessToken;
+			session.user.role = token.role;
+			session.user.permissions = token.permissions;
 			return session;
 		},
-		pages: {
-			signIn: "/(auth)/signin", // Custom sign-in page
+		async redirect({ url, baseUrl }) {
+			// Redirect to admin dashboard after login
+			if (url.startsWith(baseUrl)) {
+				return `${baseUrl}/`;
+			}
+			return baseUrl;
 		},
+	},
+	pages: {
+		signIn: "/sign-in", // Custom admin sign-in page
+		error: "/sign-in", // Custom error page
+	},
+	session: {
+		strategy: "jwt",
+		maxAge: 24 * 60 * 60, // 24 hours
 	},
 	secret: process.env.NEXTAUTH_SECRET,
 });
