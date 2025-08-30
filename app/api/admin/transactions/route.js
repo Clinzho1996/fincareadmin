@@ -16,7 +16,7 @@ export async function GET(request) {
 
 		const { searchParams } = new URL(request.url);
 		const page = parseInt(searchParams.get("page")) || 1;
-		const limit = parseInt(searchParams.get("limit")) || 10;
+		const limit = parseInt(searchParams.get("limit")) || 1000;
 		const status = searchParams.get("status");
 		const type = searchParams.get("type");
 
@@ -29,48 +29,24 @@ export async function GET(request) {
 
 		const transactions = await db
 			.collection("transactions")
-			.aggregate([
-				{ $match: query },
-				{ $sort: { createdAt: -1 } },
-				{ $skip: (page - 1) * limit },
-				{ $limit: limit },
-				{
-					$lookup: {
-						from: "users",
-						localField: "userId",
-						foreignField: "_id",
-						as: "user",
-					},
-				},
-				{
-					$unwind: {
-						path: "$user",
-						preserveNullAndEmptyArrays: true,
-					},
-				},
-				{
-					$project: {
-						_id: 1,
-						type: 1,
-						amount: 1,
-						status: 1,
-						description: 1,
-						reference: 1,
-						createdAt: 1,
-						updatedAt: 1,
-						"user.firstName": 1,
-						"user.lastName": 1,
-						"user.email": 1,
-					},
-				},
-			])
+			.find(query)
+			.sort({ createdAt: -1 })
+			.skip((page - 1) * limit)
+			.limit(limit)
 			.toArray();
 
 		const total = await db.collection("transactions").countDocuments(query);
 
+		// Convert ObjectId to string for JSON serialization
+		const serializedTransactions = transactions.map((tx) => ({
+			...tx,
+			_id: tx._id.toString(),
+			userId: tx.userId.toString(),
+		}));
+
 		return NextResponse.json({
 			status: "success",
-			data: transactions,
+			data: serializedTransactions,
 			pagination: {
 				page,
 				limit,

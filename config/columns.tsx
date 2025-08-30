@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowUpDown, Download, Eye, MoreHorizontal } from "lucide-react";
 
+import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -287,10 +288,10 @@ const TransactionsTable = () => {
 			cell: ({ row }) => {
 				const status = row.getValue("status") as string;
 				const statusColors = {
-					completed: "bg-green-100 text-green-800",
-					pending: "bg-yellow-100 text-yellow-800",
-					processing: "bg-blue-100 text-blue-800",
-					failed: "bg-red-100 text-red-800",
+					completed: "status green",
+					pending: "status yellow",
+					processing: "status blue",
+					failed: "status red",
 				};
 
 				return (
@@ -341,7 +342,7 @@ const TransactionsTable = () => {
 								<MoreHorizontal className="h-4 w-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
+						<DropdownMenuContent align="end" className="bg-white">
 							<DropdownMenuLabel>Actions</DropdownMenuLabel>
 							<DropdownMenuItem onClick={() => handleViewDetails(transaction)}>
 								<Eye className="mr-2 h-4 w-4" />
@@ -398,7 +399,7 @@ const TransactionsTable = () => {
 	});
 
 	return (
-		<div className="rounded-lg border-[1px] p-5">
+		<div className="rounded-lg border-[1px] p-5 bg-white">
 			<div className="flex items-center justify-between py-4 gap-4">
 				<Input
 					placeholder="Search transactions..."
@@ -417,7 +418,7 @@ const TransactionsTable = () => {
 				</div>
 			</div>
 
-			<div className="rounded-md border">
+			<div className="rounded-md border bg-white">
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
@@ -473,7 +474,7 @@ const TransactionsTable = () => {
 					{table.getFilteredSelectedRowModel().rows.length} of{" "}
 					{table.getFilteredRowModel().rows.length} row(s) selected.
 				</div>
-				<div className="space-x-2">
+				<div className="space-x-2 flex flex-row gap-3">
 					<Button
 						variant="outline"
 						size="sm"
@@ -492,11 +493,13 @@ const TransactionsTable = () => {
 			</div>
 
 			{/* Transaction Detail Modal */}
-			{isDetailModalOpen && selectedTransaction && (
-				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-					<div className="bg-white rounded-lg p-6 w-full max-w-2xl">
-						<h2 className="text-xl font-bold mb-4">Transaction Details</h2>
-
+			{selectedTransaction && (
+				<Modal
+					title="Transaction Details"
+					isOpen={isDetailModalOpen}
+					onClose={() => setDetailModalOpen(false)}
+					className="w-[500px]">
+					<div className="bg-white rounded-lg p-6">
 						<div className="grid grid-cols-2 gap-4 mb-4">
 							<div>
 								<p className="text-sm text-gray-500">Transaction ID</p>
@@ -561,7 +564,7 @@ const TransactionsTable = () => {
 							</Button>
 						</div>
 					</div>
-				</div>
+				</Modal>
 			)}
 		</div>
 	);
