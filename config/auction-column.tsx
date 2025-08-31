@@ -299,8 +299,7 @@ const AuctionTable = () => {
 	return (
 		<>
 			{/* Status Filter */}
-			<div className="flex justify-between items-center mb-4">
-				<h2 className="text-xl font-bold">Auctions Management</h2>
+			<div className="flex justify-end mt-3 items-center mb-4">
 				<div className="flex items-center gap-2">
 					<span className="text-sm">Filter by status:</span>
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -321,10 +320,7 @@ const AuctionTable = () => {
 			{isLoading ? (
 				<Loader />
 			) : (
-				<AuctionDataTable
-					columns={columns}
-					data={filteredAuctions}
-				/>
+				<AuctionDataTable columns={columns} data={filteredAuctions} />
 			)}
 
 			{isDeleteModalOpen && (
