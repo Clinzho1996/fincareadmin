@@ -17,6 +17,7 @@ import {
 import Modal from "@/components/Modal";
 import TabCard from "@/components/TabCard";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,7 +35,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
 import {
 	ChevronLeft,
 	ChevronRight,
@@ -61,6 +62,10 @@ interface Investment {
 
 export function InvestmentDataTable() {
 	const [isSending, setIsSending] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
+	const [editingInvestment, setEditingInvestment] = useState<Investment | null>(
+		null
+	);
 
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -123,6 +128,25 @@ export function InvestmentDataTable() {
 	}, []);
 
 	const columns: ColumnDef<Investment>[] = [
+		{
+			id: "select",
+			header: ({ table }) => (
+				<Checkbox
+					checked={table.getIsAllPageRowsSelected()}
+					onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+					aria-label="Select all"
+				/>
+			),
+			cell: ({ row }) => (
+				<Checkbox
+					checked={row.getIsSelected()}
+					onCheckedChange={(value) => row.toggleSelected(!!value)}
+					aria-label="Select row"
+				/>
+			),
+			enableSorting: false,
+			enableHiding: false,
+		},
 		{
 			accessorKey: "name",
 			header: "Investment",
@@ -197,11 +221,39 @@ export function InvestmentDataTable() {
 				</span>
 			),
 		},
+		{
+			id: "actions",
+			header: "Actions",
+			cell: ({ row }) => {
+				const investment = row.original;
+
+				return (
+					<div className="flex space-x-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => handleEditInvestment(investment)}
+							className="h-8 w-8 p-0">
+							<IconEdit className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() => handleDeleteInvestment(investment._id)}
+							className="h-8 w-8 p-0">
+							<IconTrash className="h-4 w-4" />
+						</Button>
+					</div>
+				);
+			},
+		},
 	];
 
 	const openModal = () => setModalOpen(true);
 	const closeModal = () => {
 		setModalOpen(false);
+		setIsEditing(false);
+		setEditingInvestment(null);
 		setName("");
 		setUnitPrice("");
 		setInterestRate("");
@@ -209,6 +261,20 @@ export function InvestmentDataTable() {
 		setMaturityDate("");
 		setImageFile(null);
 		setPreviewImage(null);
+	};
+
+	const handleEditInvestment = (investment: Investment) => {
+		setIsEditing(true);
+		setEditingInvestment(investment);
+		setName(investment.name);
+		setUnitPrice(investment.unitPrice.toString());
+		setInterestRate(investment.interestRate.toString());
+		setType(investment.type);
+		setMaturityDate(
+			new Date(investment.maturityDate).toISOString().split("T")[0]
+		);
+		setPreviewImage(investment.image || null);
+		setModalOpen(true);
 	};
 
 	const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,8 +318,16 @@ export function InvestmentDataTable() {
 				formData.append("image", imageFile);
 			}
 
-			const response = await fetch("/api/admin/investments", {
-				method: "POST",
+			// ✅ include _id if editing
+			if (isEditing && editingInvestment?._id) {
+				formData.append("id", editingInvestment._id);
+			}
+
+			const url = "/api/admin/investments";
+			const method = isEditing ? "PUT" : "POST";
+
+			const response = await fetch(url, {
+				method,
 				headers: {
 					Authorization: `Bearer ${accessToken}`,
 				},
@@ -263,19 +337,65 @@ export function InvestmentDataTable() {
 			const data = await response.json();
 
 			if (!response.ok) {
-				toast.error(data.error || "Failed to create investment");
+				toast.error(
+					data.error ||
+						`Failed to ${isEditing ? "update" : "create"} investment`
+				);
 				return;
 			}
 
 			// Refresh the investments list
 			fetchInvestments();
-			toast.success("Investment created successfully!");
+			toast.success(
+				`Investment ${isEditing ? "updated" : "created"} successfully!`
+			);
 			closeModal();
 		} catch (error) {
-			console.error("Error creating investment:", error);
+			console.error(
+				`Error ${isEditing ? "updating" : "creating"} investment:`,
+				error
+			);
 			toast.error("Something went wrong. Try again.");
 		} finally {
-			setIsSending(false); // End loading
+			setIsSending(false);
+		}
+	};
+
+	const handleDeleteInvestment = async (investmentId: string) => {
+		if (!confirm("Are you sure you want to delete this investment?")) {
+			return;
+		}
+
+		try {
+			const session = await getSession();
+			const accessToken = session?.accessToken;
+
+			if (!accessToken) {
+				console.error("No access token found.");
+				toast.error("Authentication required");
+				return;
+			}
+
+			const response = await fetch(
+				`/api/admin/investments?id=${investmentId}`,
+				{
+					method: "DELETE",
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+					},
+				}
+			);
+
+			if (!response.ok) {
+				throw new Error("Failed to delete investment");
+			}
+
+			// Refresh the investments list
+			fetchInvestments();
+			toast.success("Investment deleted successfully!");
+		} catch (error) {
+			console.error("Error deleting investment:", error);
+			toast.error("Failed to delete investment");
 		}
 	};
 
@@ -286,6 +406,14 @@ export function InvestmentDataTable() {
 
 		if (selectedIds.length === 0) {
 			toast.warn("No investments selected for deletion.");
+			return;
+		}
+
+		if (
+			!confirm(
+				`Are you sure you want to delete ${selectedIds.length} selected investments?`
+			)
+		) {
 			return;
 		}
 
@@ -384,7 +512,7 @@ export function InvestmentDataTable() {
 			<Modal
 				isOpen={isModalOpen}
 				onClose={closeModal}
-				title="Add Investment Plan">
+				title={isEditing ? "Edit Investment Plan" : "Add Investment Plan"}>
 				<div className="bg-white p-0 rounded-lg w-[600px] transition-transform ease-in-out form">
 					<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
 						<div className="flex flex-col gap-4 mt-4">
@@ -472,7 +600,13 @@ export function InvestmentDataTable() {
 								className="bg-primary-1 text-white font-inter text-xs"
 								onClick={handleAddInvestment}
 								disabled={isSending}>
-								{isSending ? "Adding..." : "Add Investment"}
+								{isSending
+									? isEditing
+										? "Updating..."
+										: "Adding..."
+									: isEditing
+									? "Update Investment"
+									: "Add Investment"}
 							</Button>
 						</div>
 					</div>
@@ -491,6 +625,16 @@ export function InvestmentDataTable() {
 						value={tableData.length}
 						icon="/images/salesicon.png"
 					/>
+					<TabCard
+						title="Fixed Investments"
+						value={tableData.filter((i) => i.type === "fixed").length}
+						icon="/images/salesicon.png"
+					/>
+					<TabCard
+						title="Flexible Inv."
+						value={tableData.filter((i) => i.type === "flexible").length}
+						icon="/images/salesicon.png"
+					/>
 				</div>
 				<div className="flex flex-row justify-start items-center gap-3 font-inter">
 					<Button
@@ -502,17 +646,34 @@ export function InvestmentDataTable() {
 			</div>
 
 			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full">
+				<div className="flex flex-row justify-start bg-white items-center rounded-lg mx-auto special-btn-farmer pr-2">
+					{["View All", "Fixed", "Flexible"].map((status, index, arr) => (
+						<p
+							key={status}
+							className={`px-4 py-2 text-center text-sm cursor-pointer border border-[#E2E4E9] overflow-hidden ${
+								selectedStatus === status
+									? "bg-primary-5 text-dark-1"
+									: "text-dark-1"
+							} 
+              ${index === 0 ? "rounded-l-lg firstRound" : ""} 
+              ${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
+							onClick={() => handleStatusFilter(status)}>
+							{status}
+						</p>
+					))}
+				</div>
 				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full">
 					<Input
 						placeholder="Search investments..."
 						value={globalFilter}
 						onChange={(e) => setGlobalFilter(e.target.value)}
-						className="focus:border-none bg-[#F9FAFB] w-full"
+						className="focus:border-none bg-[#F9FAFB]"
 					/>
 					<Button
 						className="border-[#E8E8E8] border-[1px] bg-white"
-						onClick={bulkDeleteInvestments}>
-						<IconTrash /> Delete
+						onClick={bulkDeleteInvestments}
+						disabled={Object.keys(rowSelection).length === 0}>
+						<IconTrash /> Delete Selected
 					</Button>
 					<div className="w-[250px]">
 						<DateRangePicker dateRange={dateRange} onSelect={setDateRange} />
