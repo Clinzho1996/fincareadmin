@@ -321,7 +321,10 @@ const AuctionTable = () => {
 			{isLoading ? (
 				<Loader />
 			) : (
-				<AuctionDataTable columns={columns} data={filteredAuctions} />
+				<AuctionDataTable
+					columns={columns}
+					data={filteredAuctions}
+				/>
 			)}
 
 			{isDeleteModalOpen && (
