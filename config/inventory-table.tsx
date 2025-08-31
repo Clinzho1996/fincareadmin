@@ -497,16 +497,6 @@ export function InvestmentDataTable() {
 						value={tableData.length}
 						icon="/images/salesicon.png"
 					/>
-					<TabCard
-						title="Fixed Investments"
-						value={tableData.filter((i) => i.type === "fixed").length}
-						icon="/images/salesicon.png"
-					/>
-					<TabCard
-						title="Flexible Inv."
-						value={tableData.filter((i) => i.type === "flexible").length}
-						icon="/images/salesicon.png"
-					/>
 				</div>
 				<div className="flex flex-row justify-start items-center gap-3 font-inter">
 					<Button
@@ -518,28 +508,12 @@ export function InvestmentDataTable() {
 			</div>
 
 			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full">
-				<div className="flex flex-row justify-start bg-white items-center rounded-lg mx-auto special-btn-farmer pr-2">
-					{["View All", "Fixed", "Flexible"].map((status, index, arr) => (
-						<p
-							key={status}
-							className={`px-4 py-2 text-center text-sm cursor-pointer border border-[#E2E4E9] overflow-hidden ${
-								selectedStatus === status
-									? "bg-primary-5 text-dark-1"
-									: "text-dark-1"
-							} 
-              ${index === 0 ? "rounded-l-lg firstRound" : ""} 
-              ${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
-							onClick={() => handleStatusFilter(status)}>
-							{status}
-						</p>
-					))}
-				</div>
 				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full">
 					<Input
 						placeholder="Search investments..."
 						value={globalFilter}
 						onChange={(e) => setGlobalFilter(e.target.value)}
-						className="focus:border-none bg-[#F9FAFB]"
+						className="focus:border-none bg-[#F9FAFB] w-full"
 					/>
 					<Button
 						className="border-[#E8E8E8] border-[1px] bg-white"

@@ -32,7 +32,7 @@ export const sidebarLinks = [
 		imgUrl: "/icons/inventory.svg",
 	},
 	{
-		label: "Real Estate Management",
+		label: "Real Estate Investment",
 		route: "/real-estate-investment",
 		imgUrl: "/icons/inventory.svg",
 	},
