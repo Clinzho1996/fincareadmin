@@ -14,9 +14,8 @@ import {
 	VisibilityState,
 } from "@tanstack/react-table";
 
-import { Button } from "@/components/ui/button";
-
 import Modal from "@/components/Modal";
+import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,8 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { IconPlus } from "@tabler/icons-react";
-import axios from "axios";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import {
 	ChevronLeft,
 	ChevronRight,
@@ -46,26 +44,22 @@ import { getSession } from "next-auth/react";
 import React, { useEffect, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
-import * as XLSX from "xlsx";
+
+interface Staff {
+	_id: string;
+	firstName: string;
+	lastName: string;
+	email: string;
+	role: string;
+	staffCode: string;
+	isActive: boolean;
+	createdAt: string;
+	updatedAt: string;
+}
 
 interface DataTableProps<TData, TValue> {
 	columns: ColumnDef<TData, TValue>[];
 	data: TData[];
-}
-
-interface ApiResponse {
-	id: string;
-	first_name: string;
-	last_name: string;
-	email: string;
-	picture: string | null;
-	staff_code: string;
-	role: string;
-	is_active: boolean;
-	last_logged_in: string | null;
-	created_at: string;
-	updated_at: string;
-	status?: string;
 }
 
 export function StaffDataTable<TData, TValue>({
@@ -82,110 +76,79 @@ export function StaffDataTable<TData, TValue>({
 	const [selectedStatus, setSelectedStatus] = useState<string>("View All");
 	const [globalFilter, setGlobalFilter] = useState("");
 	const [isModalOpen, setModalOpen] = useState(false);
+	const [isEditModalOpen, setEditModalOpen] = useState(false);
 	const [tableData, setTableData] = useState<TData[]>(data);
 	const [isLoading, setIsLoading] = useState(false);
-	const [permissions, setPermissions] = useState<string[]>([]);
-
-	const handlePermissionToggle = (perm: string) => {
-		setPermissions((prev) =>
-			prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
-		);
-	};
 	const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-	// State for form inputs
+	// Form state
 	const [firstName, setFirstName] = useState("");
 	const [lastName, setLastName] = useState("");
 	const [email, setEmail] = useState("");
-	const [staffId, setStaffId] = useState("");
-	const [role, setRole] = useState("super_admin");
-
-	const openModal = () => setModalOpen(true);
-	const closeModal = () => setModalOpen(false);
+	const [role, setRole] = useState("admin");
+	const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+	const [password, setPassword] = useState("");
 
 	// Sync `tableData` with `data` prop
 	useEffect(() => {
 		setTableData(data);
 	}, [data]);
 
-	// Function to filter data based on date range
-	const filterDataByDateRange = () => {
-		if (!dateRange?.from || !dateRange?.to) {
-			setTableData(data); // Reset to all data
-			return;
-		}
-
-		const filteredData = data.filter((farmer: any) => {
-			const dateJoined = new Date(farmer.date);
-			return dateJoined >= dateRange.from! && dateJoined <= dateRange.to!;
-		});
-
-		setTableData(filteredData);
+	const openModal = () => setModalOpen(true);
+	const closeModal = () => {
+		setModalOpen(false);
+		resetForm();
 	};
 
-	useEffect(() => {
-		filterDataByDateRange();
-	}, [dateRange]);
-
-	const handleStatusFilter = (status: string) => {
-		setSelectedStatus(status);
-
-		if (status === "View All") {
-			setTableData(data); // Reset to all data
-		} else {
-			const filteredData = data?.filter(
-				(farmer) =>
-					(farmer as any)?.status?.toLowerCase() === status.toLowerCase()
-			);
-
-			setTableData(filteredData as TData[]);
-		}
+	const openEditModal = (staff: Staff) => {
+		setEditingStaff(staff);
+		setFirstName(staff.firstName);
+		setLastName(staff.lastName);
+		setEmail(staff.email);
+		setRole(staff.role);
+		setEditModalOpen(true);
 	};
 
-	const fetchStaffs = async () => {
+	const closeEditModal = () => {
+		setEditModalOpen(false);
+		setEditingStaff(null);
+		resetForm();
+	};
+
+	const resetForm = () => {
+		setFirstName("");
+		setLastName("");
+		setEmail("");
+		setRole("admin");
+		setPassword("");
+	};
+
+	const fetchStaff = async () => {
 		try {
 			setIsLoading(true);
 			const session = await getSession();
-
-			console.log("session", session);
-
 			const accessToken = session?.accessToken;
+
 			if (!accessToken) {
 				console.error("No access token found.");
-				setIsLoading(false);
 				return;
 			}
 
-			const response = await axios.get<{
-				status: string;
-				message: string;
-				data: ApiResponse[];
-			}>("api/admin/users", {
+			const response = await fetch("/api/admin/users", {
 				headers: {
-					Accept: "application/json",
 					Authorization: `Bearer ${accessToken}`,
 				},
 			});
 
-			const fetchedData = response.data.data;
+			if (!response.ok) {
+				throw new Error("Failed to fetch staff");
+			}
 
-			console.log("Staff Data:", fetchedData);
-
-			// Map the API response to match the `Staff` type
-			const mappedData = fetchedData.map((item) => ({
-				id: item.id,
-				name: `${item.first_name} ${item.last_name}` || "N/A",
-				date: item.created_at,
-				role: item.role,
-				staff: item.staff_code,
-				status: item.is_active ? "active" : "inactive",
-				email: item.email,
-			}));
-
-			console.log("Mapped Data:", mappedData);
-			setTableData(mappedData as TData[]);
+			const data = await response.json();
+			setTableData(data.users || []);
 		} catch (error) {
-			console.error("Error fetching user data:", error);
+			console.error("Error fetching staff:", error);
+			toast.error("Failed to load staff data");
 		} finally {
 			setIsLoading(false);
 		}
@@ -198,148 +161,184 @@ export function StaffDataTable<TData, TValue>({
 			const accessToken = session?.accessToken;
 
 			if (!accessToken) {
-				console.error("No access token found.");
+				toast.error("Authentication required");
 				return;
 			}
 
 			const payload = {
-				first_name: firstName,
-				last_name: lastName,
-				email: email,
-				role: role,
+				firstName,
+				lastName,
+				email,
+				role,
+				password: password || undefined, // Only include password if provided
 			};
 
-			const response = await axios.post("/api/admin/users", payload, {
+			const response = await fetch("/api/admin/users", {
+				method: "POST",
 				headers: {
-					Accept: "application/json",
+					"Content-Type": "application/json",
 					Authorization: `Bearer ${accessToken}`,
 				},
+				body: JSON.stringify(payload),
 			});
 
-			if (response.status === 200 || response.status === 201) {
-				await fetchStaffs();
+			const data = await response.json();
 
-				toast.success("Staff member added successfully!");
+			if (!response.ok) {
+				throw new Error(data.error || "Failed to add staff");
+			}
 
-				// Close the modal and reset form fields
-				closeModal();
-				setFirstName("");
-				setLastName("");
-				setEmail(" ");
-				setStaffId("");
-				setRole("super_admin");
-			}
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.log(
-					"Error Adding Staff:",
-					error.response?.data || error.message
-				);
-				toast.error(
-					error.response?.data?.message ||
-						"An error occurred. Please try again."
-				);
-			} else {
-				console.log("Unexpected error:", error);
-				toast.error("Unexpected error occurred.");
-			}
+			toast.success("Staff member added successfully!");
+			closeModal();
+			fetchStaff(); // Refresh the list
+		} catch (error: any) {
+			console.error("Error adding staff:", error);
+			toast.error(error.message || "An error occurred. Please try again.");
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	const handleExport = () => {
-		// Convert the table data to a worksheet
-		const worksheet = XLSX.utils.json_to_sheet(tableData);
+	const handleUpdateStaff = async () => {
+		if (!editingStaff) return;
 
-		// Create a new workbook and add the worksheet
-		const workbook = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(workbook, worksheet, "Farmers");
-
-		// Generate a binary string from the workbook
-		const binaryString = XLSX.write(workbook, {
-			bookType: "xlsx",
-			type: "binary",
-		});
-
-		// Convert the binary string to a Blob
-		const blob = new Blob([s2ab(binaryString)], {
-			type: "application/octet-stream",
-		});
-
-		// Create a link element and trigger the download
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement("a");
-		link.href = url;
-		link.download = "staffs.xlsx";
-		link.click();
-
-		// Clean up
-		URL.revokeObjectURL(url);
-	};
-
-	// Utility function to convert string to ArrayBuffer
-	const s2ab = (s: string) => {
-		const buf = new ArrayBuffer(s.length);
-		const view = new Uint8Array(buf);
-		for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xff;
-		return buf;
-	};
-
-	const bulkDeleteStaff = async () => {
+		setIsLoading(true);
 		try {
 			const session = await getSession();
 			const accessToken = session?.accessToken;
 
 			if (!accessToken) {
-				console.error("No access token found.");
-				toast.error("No access token found. Please log in again.");
+				toast.error("Authentication required");
 				return;
 			}
 
-			const selectedIds = Object.keys(rowSelection).map(
-				(index) => (tableData[parseInt(index)] as any)?.id
-			);
+			const payload = {
+				firstName,
+				lastName,
+				email,
+				role,
+				...(password && { password }), // Only include password if provided
+			};
 
-			if (selectedIds.length === 0) {
-				toast.warn("No staff selected for deletion.");
+			const response = await fetch(`/api/admin/users?id=${editingStaff._id}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${accessToken}`,
+				},
+				body: JSON.stringify(payload),
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || "Failed to update staff");
+			}
+
+			toast.success("Staff member updated successfully!");
+			closeEditModal();
+			fetchStaff(); // Refresh the list
+		} catch (error: any) {
+			console.error("Error updating staff:", error);
+			toast.error(error.message || "An error occurred. Please try again.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleDeleteStaff = async (staffId: string) => {
+		if (!confirm("Are you sure you want to delete this staff member?")) {
+			return;
+		}
+
+		try {
+			const session = await getSession();
+			const accessToken = session?.accessToken;
+
+			if (!accessToken) {
+				toast.error("Authentication required");
 				return;
 			}
 
-			console.log("Selected IDs for deletion:", selectedIds);
+			const response = await fetch(`/api/admin/users?id=${staffId}`, {
+				method: "DELETE",
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
+			});
 
-			const response = await axios.delete(
-				"https://api.wowdev.com.ng/api/v1/user/bulk/delete",
-				{
-					data: { user_ids: selectedIds }, // Ensure this matches the API's expected payload
+			if (!response.ok) {
+				throw new Error("Failed to delete staff");
+			}
+
+			toast.success("Staff member deleted successfully!");
+			fetchStaff(); // Refresh the list
+		} catch (error: any) {
+			console.error("Error deleting staff:", error);
+			toast.error(error.message || "Failed to delete staff");
+		}
+	};
+
+	const bulkDeleteStaff = async () => {
+		const selectedIds = Object.keys(rowSelection).map(
+			(index) => (tableData[parseInt(index)] as any)?._id
+		);
+
+		if (selectedIds.length === 0) {
+			toast.warn("No staff selected for deletion.");
+			return;
+		}
+
+		if (
+			!confirm(
+				`Are you sure you want to delete ${selectedIds.length} selected staff members?`
+			)
+		) {
+			return;
+		}
+
+		try {
+			const session = await getSession();
+			const accessToken = session?.accessToken;
+
+			if (!accessToken) {
+				toast.error("Authentication required");
+				return;
+			}
+
+			// Delete each selected staff member
+			for (const id of selectedIds) {
+				const response = await fetch(`/api/admin/users?id=${id}`, {
+					method: "DELETE",
 					headers: {
-						Accept: "application/json",
 						Authorization: `Bearer ${accessToken}`,
 					},
+				});
+
+				if (!response.ok) {
+					throw new Error(`Failed to delete staff member ${id}`);
 				}
-			);
-
-			if (response.status === 200) {
-				toast.success("Selected staff deleted successfully!");
-
-				// Update the table data by filtering out the deleted staff
-				setTableData((prevData) =>
-					prevData.filter((staff) => !selectedIds.includes((staff as any).id))
-				);
-
-				// Clear the selection
-				setRowSelection({});
 			}
-		} catch (error) {
+
+			toast.success("Selected staff members deleted successfully!");
+			setRowSelection({});
+			fetchStaff(); // Refresh the list
+		} catch (error: any) {
 			console.error("Error bulk deleting staff:", error);
-			if (axios.isAxiosError(error)) {
-				toast.error(
-					error.response?.data?.message ||
-						"Failed to delete staff. Please try again."
-				);
-			} else {
-				toast.error("An unexpected error occurred. Please try again.");
-			}
+			toast.error(error.message || "Failed to delete staff members");
+		}
+	};
+
+	const handleStatusFilter = (status: string) => {
+		setSelectedStatus(status);
+
+		if (status === "View All") {
+			setTableData(data);
+		} else {
+			const filteredData = data.filter(
+				(staff: any) => staff.isActive === (status === "Active")
+			);
+			setTableData(filteredData as TData[]);
 		}
 	};
 
@@ -366,65 +365,70 @@ export function StaffDataTable<TData, TValue>({
 
 	return (
 		<div className="rounded-lg border-[1px] py-0">
+			{/* Add Staff Modal */}
 			<Modal isOpen={isModalOpen} onClose={closeModal} title="Add Admin User">
 				<div className="bg-white p-0 rounded-lg transition-transform ease-in-out form">
 					<div className="mt-3 pt-2">
-						<div className="flex flex-col gap-2">
-							<p className="text-xs text-primary-6">Full Name</p>
-							<Input
-								type="text"
-								placeholder="Enter First Name"
-								className="focus:border-none mt-2"
-								value={firstName}
-								onChange={(e) => setFirstName(e.target.value)}
-							/>
-							<Input
-								type="text"
-								placeholder="Enter Last Name"
-								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
+						<div className="flex flex-col gap-4">
+							<div>
+								<p className="text-xs text-primary-6">First Name</p>
+								<Input
+									type="text"
+									placeholder="Enter First Name"
+									className="focus:border-none mt-1"
+									value={firstName}
+									onChange={(e) => setFirstName(e.target.value)}
+								/>
+							</div>
 
-							<p className="text-xs text-primary-6 mt-2">Email Address</p>
-							<Input
-								type="text"
-								placeholder="Enter Email Address"
-								className="focus:border-none mt-2"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
-							/>
+							<div>
+								<p className="text-xs text-primary-6">Last Name</p>
+								<Input
+									type="text"
+									placeholder="Enter Last Name"
+									className="focus:border-none mt-1"
+									value={lastName}
+									onChange={(e) => setLastName(e.target.value)}
+								/>
+							</div>
 
-							<p className="text-xs text-primary-6 mt-2">Role</p>
-							<Select value={role} onValueChange={setRole}>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select Role" />
-								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="super_admin">Super Admin</SelectItem>
-									<SelectItem value="admin">Admin</SelectItem>
-									<SelectItem value="support">Support</SelectItem>
-								</SelectContent>
-							</Select>
+							<div>
+								<p className="text-xs text-primary-6">Email Address</p>
+								<Input
+									type="email"
+									placeholder="Enter Email Address"
+									className="focus:border-none mt-1"
+									value={email}
+									onChange={(e) => setEmail(e.target.value)}
+								/>
+							</div>
 
-							<p className="text-xs text-primary-6 mt-2">Permissions</p>
-							<div className="flex flex-wrap gap-2">
-								{[
-									"users:read",
-									"users:write",
-									"transactions:read",
-									"transactions:write",
-								].map((perm) => (
-									<Button
-										key={perm}
-										variant={permissions.includes(perm) ? "default" : "outline"}
-										className="text-xs"
-										onClick={() => handlePermissionToggle(perm)}>
-										{perm}
-									</Button>
-								))}
+							<div>
+								<p className="text-xs text-primary-6">Password</p>
+								<Input
+									type="password"
+									placeholder="Enter Password (optional)"
+									className="focus:border-none mt-1"
+									value={password}
+									onChange={(e) => setPassword(e.target.value)}
+								/>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">Role</p>
+								<Select value={role} onValueChange={setRole}>
+									<SelectTrigger className="w-full mt-1">
+										<SelectValue placeholder="Select Role" />
+									</SelectTrigger>
+									<SelectContent className="bg-white z-10">
+										<SelectItem value="super_admin">Super Admin</SelectItem>
+										<SelectItem value="admin">Admin</SelectItem>
+										<SelectItem value="support">Support</SelectItem>
+									</SelectContent>
+								</Select>
 							</div>
 						</div>
+
 						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 						<div className="flex flex-row justify-end items-center gap-3 font-inter">
 							<Button
@@ -443,6 +447,93 @@ export function StaffDataTable<TData, TValue>({
 				</div>
 			</Modal>
 
+			{/* Edit Staff Modal */}
+			<Modal
+				isOpen={isEditModalOpen}
+				onClose={closeEditModal}
+				title="Edit Admin User">
+				<div className="bg-white p-0 rounded-lg transition-transform ease-in-out form">
+					<div className="mt-3 pt-2">
+						<div className="flex flex-col gap-4">
+							<div>
+								<p className="text-xs text-primary-6">First Name</p>
+								<Input
+									type="text"
+									placeholder="Enter First Name"
+									className="focus:border-none mt-1"
+									value={firstName}
+									onChange={(e) => setFirstName(e.target.value)}
+								/>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">Last Name</p>
+								<Input
+									type="text"
+									placeholder="Enter Last Name"
+									className="focus:border-none mt-1"
+									value={lastName}
+									onChange={(e) => setLastName(e.target.value)}
+								/>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">Email Address</p>
+								<Input
+									type="email"
+									placeholder="Enter Email Address"
+									className="focus:border-none mt-1"
+									value={email}
+									onChange={(e) => setEmail(e.target.value)}
+								/>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">
+									New Password (optional)
+								</p>
+								<Input
+									type="password"
+									placeholder="Enter new password to update"
+									className="focus:border-none mt-1"
+									value={password}
+									onChange={(e) => setPassword(e.target.value)}
+								/>
+							</div>
+
+							<div>
+								<p className="text-xs text-primary-6">Role</p>
+								<Select value={role} onValueChange={setRole}>
+									<SelectTrigger className="w-full mt-1">
+										<SelectValue placeholder="Select Role" />
+									</SelectTrigger>
+									<SelectContent className="bg-white z-10">
+										<SelectItem value="super_admin">Super Admin</SelectItem>
+										<SelectItem value="admin">Admin</SelectItem>
+										<SelectItem value="support">Support</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+
+						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
+						<div className="flex flex-row justify-end items-center gap-3 font-inter">
+							<Button
+								className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
+								onClick={closeEditModal}>
+								Cancel
+							</Button>
+							<Button
+								className="bg-primary-1 text-white font-inter text-xs"
+								onClick={handleUpdateStaff}
+								disabled={isLoading}>
+								{isLoading ? "Updating User..." : "Update User"}
+							</Button>
+						</div>
+					</div>
+				</div>
+			</Modal>
+
 			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full rounded-lg">
 				<div className="flex flex-row justify-start bg-white items-center rounded-lg mx-auto special-btn-farmer pr-2">
 					{["View All", "Active", "Inactive"].map((status, index, arr) => (
@@ -453,14 +544,14 @@ export function StaffDataTable<TData, TValue>({
 									? "bg-primary-5 text-dark-1"
 									: "text-dark-1"
 							} 
-			${index === 0 ? "rounded-l-lg firstRound" : ""} 
-			${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
+							${index === 0 ? "rounded-l-lg firstRound" : ""} 
+							${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
 							onClick={() => handleStatusFilter(status)}>
 							{status}
 						</p>
 					))}
 				</div>
-				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full ">
+				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full">
 					<Input
 						placeholder="Search Staff..."
 						value={globalFilter}
@@ -471,9 +562,20 @@ export function StaffDataTable<TData, TValue>({
 					<div className="w-[250px]">
 						<DateRangePicker dateRange={dateRange} onSelect={setDateRange} />
 					</div>
+
+					{Object.keys(rowSelection).length > 0 && (
+						<Button
+							variant="destructive"
+							onClick={bulkDeleteStaff}
+							disabled={isLoading}>
+							<IconTrash /> Delete Selected
+						</Button>
+					)}
+
 					<Button
 						className="bg-primary-1 text-white font-inter"
-						onClick={openModal}>
+						onClick={openModal}
+						disabled={isLoading}>
 						<IconPlus /> Add New Staff
 					</Button>
 				</div>
@@ -516,12 +618,13 @@ export function StaffDataTable<TData, TValue>({
 							<TableCell
 								colSpan={columns.length}
 								className="h-24 text-left text-xs text-primary-6">
-								No results.
+								No staff members found.
 							</TableCell>
 						</TableRow>
 					)}
 				</TableBody>
 			</Table>
+
 			<div className="flex items-center justify-between bg-white rounded-lg py-3 px-2 border-t-[1px] border-gray-300 mt-2">
 				<div className="flex-1 text-xs text-primary-6 text-muted-foreground">
 					{table.getFilteredSelectedRowModel().rows.length} of{" "}
