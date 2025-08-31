@@ -15,30 +15,52 @@ function generatePassword(length = 10) {
 	return pwd;
 }
 
-// helper: send email
-async function sendWelcomeEmail(to, password) {
-	const transporter = nodemailer.createTransport({
-		host: process.env.SMTP_HOST,
-		port: process.env.SMTP_PORT,
-		secure: false,
-		auth: {
-			user: process.env.SMTP_USER,
-			pass: process.env.SMTP_PASS,
-		},
-	});
+async function sendWelcomeEmail(email, password) {
+	try {
+		// Create transporter with Brevo SMTP settings
+		const transporter = nodemailer.createTransport({
+			host: process.env.SMTP_HOST, // smtp-relay.brevo.com
+			port: parseInt(process.env.SMTP_PORT), // 587
+			secure: false, // false for port 587
+			auth: {
+				user: process.env.SMTP_USER, // 7dbddc001@smtp-brevo.com
+				pass: process.env.SMTP_PASS, // Your Brevo SMTP password
+			},
+		});
 
-	await transporter.sendMail({
-		from: `"Fincare Admin" <${process.env.SMTP_USER}>`,
-		to,
-		subject: "Your Fincare Admin Account",
-		html: `
-      <h2>Welcome to Fincare Admin</h2>
-      <p>Your account has been created. Here are your login details:</p>
-      <p><b>Email:</b> ${to}</p>
-      <p><b>Temporary Password:</b> ${password}</p>
-      <p>Please login and change your password immediately.</p>
-    `,
-	});
+		// Verify connection configuration
+		await transporter.verify();
+		console.log("Server is ready to take our messages");
+
+		// Send mail
+		const info = await transporter.sendMail({
+			from: `"Your App Name" <noreply@yourdomain.com>`,
+			to: email,
+			subject: "Welcome to Our Admin Panel",
+			html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Welcome to Our Admin Panel</h2>
+          <p>Your admin account has been successfully created.</p>
+          <p>Here are your login credentials:</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Password:</strong> ${password}</p>
+          </div>
+          <p style="color: #ff0000;">Please change your password after your first login for security reasons.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #888; font-size: 12px;">
+            If you did not request this account, please contact support immediately.
+          </p>
+        </div>
+      `,
+		});
+
+		console.log("Message sent: %s", info.messageId);
+		return true;
+	} catch (error) {
+		console.error("Error sending email:", error);
+		return false;
+	}
 }
 
 export async function POST(request) {
@@ -64,7 +86,7 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// check duplicate
+		// Check for existing user
 		const existingAdmin = await db.collection("admin_users").findOne({ email });
 		if (existingAdmin) {
 			return NextResponse.json(
@@ -73,7 +95,7 @@ export async function POST(request) {
 			);
 		}
 
-		// generate & hash password
+		// Generate & hash password
 		const plainPassword = generatePassword(12);
 		const hashedPassword = await bcrypt.hash(plainPassword, 12);
 
@@ -91,8 +113,13 @@ export async function POST(request) {
 
 		const result = await db.collection("admin_users").insertOne(newAdmin);
 
-		// email the password
-		await sendWelcomeEmail(email, plainPassword);
+		// Try to email the password
+		let emailSent = false;
+		try {
+			emailSent = await sendWelcomeEmail(email, plainPassword);
+		} catch (emailError) {
+			console.error("Failed to send welcome email:", emailError);
+		}
 
 		const adminWithoutPassword = { ...newAdmin };
 		delete adminWithoutPassword.password;
@@ -100,8 +127,14 @@ export async function POST(request) {
 		return NextResponse.json(
 			{
 				status: "success",
-				message: "Admin user created successfully. Password sent via email.",
-				data: { admin: { ...adminWithoutPassword, _id: result.insertedId } },
+				message: emailSent
+					? "Admin user created successfully. Password sent via email."
+					: "Admin user created successfully. Failed to send welcome email.",
+				data: {
+					admin: { ...adminWithoutPassword, _id: result.insertedId },
+					// Return the plain password only if email failed
+					...(!emailSent && { plainPassword }),
+				},
 			},
 			{ status: 201 }
 		);

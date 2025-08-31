@@ -74,6 +74,8 @@ export function StaffDataTable<TData, TValue>({
 		React.useState<VisibilityState>({});
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 	const [selectedStatus, setSelectedStatus] = useState<string>("View All");
+	const [showPasswordModal, setShowPasswordModal] = useState(false);
+	const [generatedPassword, setGeneratedPassword] = useState("");
 	const [globalFilter, setGlobalFilter] = useState("");
 	const [isModalOpen, setModalOpen] = useState(false);
 	const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -179,8 +181,22 @@ export function StaffDataTable<TData, TValue>({
 				throw new Error(data.error || "Failed to add staff");
 			}
 
-			toast.success("Staff member added successfully!");
-			closeModal();
+			// Check if email was sent successfully
+			if (data.data.plainPassword) {
+				// Email failed - show password in UI
+				setGeneratedPassword(data.data.plainPassword);
+				setShowPasswordModal(true);
+				toast.warning(
+					"Staff added but email failed. Please provide the password manually."
+				);
+			} else {
+				// Email succeeded
+				toast.success(
+					"Staff member added successfully! Password sent via email."
+				);
+				closeModal();
+			}
+
 			fetchStaff(); // Refresh the list
 		} catch (error: any) {
 			console.error("Error adding staff:", error);
@@ -401,6 +417,56 @@ export function StaffDataTable<TData, TValue>({
 								{isLoading ? "Adding User..." : "Add User"}
 							</Button>
 						</div>
+					</div>
+				</div>
+			</Modal>
+
+			{/* Password Display Modal */}
+			<Modal
+				isOpen={showPasswordModal}
+				onClose={() => setShowPasswordModal(false)}
+				title="Staff Account Created">
+				<div className="bg-white p-4 rounded-lg">
+					<p className="text-sm text-gray-600 mb-4">
+						The staff account was created successfully, but we couldn't send the
+						welcome email. Please provide this password to the user manually:
+					</p>
+
+					<div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+						<p className="text-xs text-yellow-800 font-semibold mb-1">
+							Generated Password:
+						</p>
+						<div className="flex items-center justify-between">
+							<code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+								{generatedPassword}
+							</code>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => {
+									navigator.clipboard.writeText(generatedPassword);
+									toast.success("Password copied to clipboard");
+								}}>
+								Copy
+							</Button>
+						</div>
+					</div>
+
+					<p className="text-xs text-gray-500 mb-4">
+						For security reasons, the user should change this password after
+						first login.
+					</p>
+
+					<div className="flex justify-end">
+						<Button
+							onClick={() => {
+								setShowPasswordModal(false);
+								setGeneratedPassword("");
+								closeModal();
+							}}
+							className="bg-primary-1 text-white">
+							OK
+						</Button>
 					</div>
 				</div>
 			</Modal>

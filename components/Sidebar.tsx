@@ -1,10 +1,12 @@
 import { sidebarLinks } from "@/constants";
 import { cn } from "@/lib/utils";
-import { useSession } from "next-auth/react";
+import { IconLogout } from "@tabler/icons-react";
+import { signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { toast } from "react-toastify";
 
 const Sidebar = () => {
 	const [isCollapsed, setIsCollapsed] = useState(false);
@@ -17,6 +19,18 @@ const Sidebar = () => {
 		setIsCollapsed(!isCollapsed);
 	};
 
+	const handleLogout = async () => {
+		try {
+			// Attempt sign out with redirect set to false
+			await signOut({ redirect: false });
+
+			// Sign-out is successful if no error occurs
+			toast.success("Logout successful!");
+		} catch (error) {
+			toast.error("Failed to log out. Please try again.");
+			console.error("Sign-out error:", error);
+		}
+	};
 	return (
 		<section
 			className={cn(
@@ -110,8 +124,8 @@ const Sidebar = () => {
 			{/* Settings + User Section */}
 			<div className="flex flex-col gap-1 mb-4">
 				<div className="flex flex-col mx-0 gap-2 border-b-[1px] border-[#E2E4E9] py-2">
-					<Link
-						href="/system-settings"
+					<div
+						onClick={handleLogout}
 						className={cn(
 							"flex items-center justify-center sm:justify-start rounded-[8px] mx-auto sm:mx-4 my-0 border-[1px] border-[#FFFFFF0A] cursor-pointer p-2",
 							{
@@ -121,27 +135,15 @@ const Sidebar = () => {
 						)}>
 						{!isCollapsed ? (
 							<div className="flex gap-2 items-center justify-start rounded-[8px] my-0">
-								<Image
-									src="/icons/settings.svg"
-									alt="settings"
-									width={20}
-									height={20}
-									className="w-[20px] h-[20px] object-contain flex"
-								/>
+								<IconLogout color="#fff" />
 								<p className="text-sm font-normal font-inter  text-white">
-									System Settings
+									Sign Out
 								</p>
 							</div>
 						) : (
-							<Image
-								src="/icons/settings.svg"
-								alt="settings"
-								width={20}
-								height={20}
-								className="w-[20px] h-[20px] object-contain flex"
-							/>
+							<IconLogout color="#fff" />
 						)}
-					</Link>
+					</div>
 				</div>
 
 				{session?.user && (
