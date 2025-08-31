@@ -2,10 +2,8 @@
 export const dynamic = "force-dynamic";
 
 import { connectToDatabase } from "@/lib/mongodb";
-import { writeFile } from "fs/promises";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
-import path from "path";
 
 // GET all admin investments
 export async function GET() {
@@ -47,24 +45,15 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		let imagePath = null;
+		let imageData = null;
 
-		// Handle image upload if provided
+		// Handle image upload if provided - store as base64
 		if (imageFile && imageFile instanceof File) {
 			const bytes = await imageFile.arrayBuffer();
 			const buffer = Buffer.from(bytes);
 
-			// Generate unique filename
-			const timestamp = Date.now();
-			const ext = path.extname(imageFile.name);
-			const filename = `investment-${timestamp}${ext}`;
-
-			// Save file to public directory
-			const publicDir = path.join(process.cwd(), "public", "uploads");
-			const filepath = path.join(publicDir, filename);
-
-			await writeFile(filepath, buffer);
-			imagePath = `/uploads/${filename}`;
+			// Convert to base64
+			imageData = `data:${imageFile.type};base64,${buffer.toString("base64")}`;
 		}
 
 		const newInvestment = {
@@ -73,7 +62,7 @@ export async function POST(request) {
 			interestRate: Number(interestRate),
 			type,
 			maturityDate: new Date(maturityDate),
-			image: imagePath,
+			image: imageData,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
@@ -102,8 +91,15 @@ export async function POST(request) {
 // PUT: update existing investment by ID
 export async function PUT(request) {
 	try {
-		const { id, name, unitPrice, interestRate, type, maturityDate, image } =
-			await request.json();
+		const formData = await request.formData();
+
+		const id = formData.get("id");
+		const name = formData.get("name");
+		const unitPrice = formData.get("unitPrice");
+		const interestRate = formData.get("interestRate");
+		const type = formData.get("type");
+		const maturityDate = formData.get("maturityDate");
+		const imageFile = formData.get("image");
 
 		if (!id) {
 			return NextResponse.json(
@@ -116,11 +112,19 @@ export async function PUT(request) {
 
 		const updateData = { updatedAt: new Date() };
 		if (name) updateData.name = name;
-		if (unitPrice) updateData.unitPrice = unitPrice;
-		if (interestRate) updateData.interestRate = interestRate;
+		if (unitPrice) updateData.unitPrice = Number(unitPrice);
+		if (interestRate) updateData.interestRate = Number(interestRate);
 		if (type) updateData.type = type;
 		if (maturityDate) updateData.maturityDate = new Date(maturityDate);
-		if (image) updateData.image = image;
+
+		// Handle image update if provided
+		if (imageFile && imageFile instanceof File) {
+			const bytes = await imageFile.arrayBuffer();
+			const buffer = Buffer.from(bytes);
+			updateData.image = `data:${imageFile.type};base64,${buffer.toString(
+				"base64"
+			)}`;
+		}
 
 		const result = await db
 			.collection("real_estate_investments")

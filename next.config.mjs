@@ -6,6 +6,8 @@ const nextConfig = {
 			"api.kuditrak.ng",
 			"ui-avatars.com",
 			"api.comicscrolls.com",
+			"images.squarespace-cdn.com",
+			"houseplans-3d.com",
 		],
 	},
 	experimental: {

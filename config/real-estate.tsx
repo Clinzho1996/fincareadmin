@@ -42,6 +42,7 @@ import {
 	ChevronsRight,
 } from "lucide-react";
 import { getSession } from "next-auth/react";
+import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
@@ -125,9 +126,11 @@ export function RealEstateDataTable() {
 			header: "Investment",
 			cell: ({ row }) => (
 				<div className="flex items-center gap-3">
-					<img
+					<Image
 						src={row.original.image || "/images/default-investment.jpg"}
 						alt={row.original.name}
+						width="100"
+						height="100"
 						className="w-10 h-10 rounded-md object-cover"
 					/>
 					<span className="text-sm font-medium">{row.getValue("name")}</span>
@@ -239,7 +242,7 @@ export function RealEstateDataTable() {
 			formData.append("name", name);
 			formData.append("unitPrice", unitPrice);
 			formData.append("interestRate", interestRate);
-			formData.append("type", type);
+			formData.append("type", "real-estate");
 			formData.append("maturityDate", maturityDate);
 
 			if (imageFile) {
@@ -453,21 +456,6 @@ export function RealEstateDataTable() {
 									value={maturityDate}
 									onChange={(e) => setMaturityDate(e.target.value)}
 								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">Type</p>
-								<Select value={type} onValueChange={(value) => setType(value)}>
-									<SelectTrigger className="w-full mt-2">
-										<SelectValue placeholder="Select type" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-100 select">
-										<SelectItem value="fixed">Fixed Investment</SelectItem>
-										<SelectItem value="flexible">
-											Flexible Investment
-										</SelectItem>
-									</SelectContent>
-								</Select>
 							</div>
 						</div>
 
