@@ -100,15 +100,6 @@ export function StaffDataTable<TData, TValue>({
 		resetForm();
 	};
 
-	const openEditModal = (staff: Staff) => {
-		setEditingStaff(staff);
-		setFirstName(staff.firstName);
-		setLastName(staff.lastName);
-		setEmail(staff.email);
-		setRole(staff.role);
-		setEditModalOpen(true);
-	};
-
 	const closeEditModal = () => {
 		setEditModalOpen(false);
 		setEditingStaff(null);
@@ -166,11 +157,11 @@ export function StaffDataTable<TData, TValue>({
 			}
 
 			const payload = {
-				firstName,
-				lastName,
-				email,
-				role,
-				password: password || undefined, // Only include password if provided
+				first_name: firstName,
+				last_name: lastName,
+				email: email,
+				role: role,
+				password: password || undefined,
 			};
 
 			const response = await fetch("/api/admin/users", {
@@ -243,39 +234,6 @@ export function StaffDataTable<TData, TValue>({
 			toast.error(error.message || "An error occurred. Please try again.");
 		} finally {
 			setIsLoading(false);
-		}
-	};
-
-	const handleDeleteStaff = async (staffId: string) => {
-		if (!confirm("Are you sure you want to delete this staff member?")) {
-			return;
-		}
-
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				toast.error("Authentication required");
-				return;
-			}
-
-			const response = await fetch(`/api/admin/users?id=${staffId}`, {
-				method: "DELETE",
-				headers: {
-					Authorization: `Bearer ${accessToken}`,
-				},
-			});
-
-			if (!response.ok) {
-				throw new Error("Failed to delete staff");
-			}
-
-			toast.success("Staff member deleted successfully!");
-			fetchStaff(); // Refresh the list
-		} catch (error: any) {
-			console.error("Error deleting staff:", error);
-			toast.error(error.message || "Failed to delete staff");
 		}
 	};
 
@@ -504,10 +462,10 @@ export function StaffDataTable<TData, TValue>({
 							<div>
 								<p className="text-xs text-primary-6">Role</p>
 								<Select value={role} onValueChange={setRole}>
-									<SelectTrigger className="w-full mt-1">
+									<SelectTrigger className="w-full mt-1 select">
 										<SelectValue placeholder="Select Role" />
 									</SelectTrigger>
-									<SelectContent className="bg-white z-10">
+									<SelectContent className="bg-white select option">
 										<SelectItem value="super_admin">Super Admin</SelectItem>
 										<SelectItem value="admin">Admin</SelectItem>
 										<SelectItem value="support">Support</SelectItem>
@@ -535,22 +493,6 @@ export function StaffDataTable<TData, TValue>({
 			</Modal>
 
 			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full rounded-lg">
-				<div className="flex flex-row justify-start bg-white items-center rounded-lg mx-auto special-btn-farmer pr-2">
-					{["View All", "Active", "Inactive"].map((status, index, arr) => (
-						<p
-							key={status}
-							className={`px-4 py-2 text-center text-sm cursor-pointer border border-[#E2E4E9] overflow-hidden ${
-								selectedStatus === status
-									? "bg-primary-5 text-dark-1"
-									: "text-dark-1"
-							} 
-							${index === 0 ? "rounded-l-lg firstRound" : ""} 
-							${index === arr.length - 1 ? "rounded-r-lg lastRound" : ""}`}
-							onClick={() => handleStatusFilter(status)}>
-							{status}
-						</p>
-					))}
-				</div>
 				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full">
 					<Input
 						placeholder="Search Staff..."

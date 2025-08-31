@@ -108,9 +108,12 @@ body {
 }
 
 .select {
-	z-index: 2000;
+	z-index: 20000 !important;
 }
 
+.option {
+	z-index: 20000 !important;
+}
 .text-gray-300 {
 	color: #86898d;
 }
