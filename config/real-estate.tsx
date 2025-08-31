@@ -58,7 +58,7 @@ interface Investment {
 	updatedAt: string;
 }
 
-export function InvestmentDataTable() {
+export function RealEstateDataTable() {
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
 		[]
@@ -95,7 +95,7 @@ export function InvestmentDataTable() {
 				return;
 			}
 
-			const response = await fetch("/api/admin/investments", {
+			const response = await fetch("/api/admin/investments/real-estates", {
 				headers: {
 					Authorization: `Bearer ${accessToken}`,
 				},
@@ -246,7 +246,7 @@ export function InvestmentDataTable() {
 				formData.append("image", imageFile);
 			}
 
-			const response = await fetch("/api/admin/investments", {
+			const response = await fetch("/api/admin/investments/real-estates", {
 				method: "POST",
 				headers: {
 					Authorization: `Bearer ${accessToken}`,
@@ -293,12 +293,15 @@ export function InvestmentDataTable() {
 
 			// Delete each selected investment
 			for (const id of selectedIds) {
-				const response = await fetch(`/api/admin/investments?id=${id}`, {
-					method: "DELETE",
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				});
+				const response = await fetch(
+					`/api/admin/investments/real-estates?id=${id}`,
+					{
+						method: "DELETE",
+						headers: {
+							Authorization: `Bearer ${accessToken}`,
+						},
+					}
+				);
 
 				if (!response.ok) {
 					throw new Error(`Failed to delete investment ${id}`);

@@ -1,15 +1,15 @@
 import HeaderBox from "@/components/HeaderBox";
-import Table from "@/config/columns";
+import { RealEstateDataTable } from "@/config/real-estate";
 
-function Payments() {
+function Inventory() {
 	return (
 		<div className="w-full overflow-x-hidden">
-			<HeaderBox title="Membership Subscription" />
+			<HeaderBox title="Investment Management" />
 			<div className="bg-[#F6F8FA] flex flex-col px-4 py-2 gap-2 w-full max-w-[100vw]">
-				<Table />
+				<RealEstateDataTable />
 			</div>
 		</div>
 	);
 }
 
-export default Payments;
+export default Inventory;

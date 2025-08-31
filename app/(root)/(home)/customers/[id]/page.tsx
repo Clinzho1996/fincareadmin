@@ -1,416 +1,285 @@
 "use client";
-import HeaderBox from "@/components/HeaderBox";
-import Loader from "@/components/Loader";
-import Modal from "@/components/Modal";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import CustomerSalesTable from "@/config/customer-sales-columns";
-import { IconEdit, IconTrash } from "@tabler/icons-react";
-import axios from "axios";
-import { getSession } from "next-auth/react";
-import Image from "next/image";
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "react-toastify";
 
-interface Readers {
-	id: string;
+import HeaderBox from "@/components/HeaderBox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { Loader2 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+
+interface Customer {
+	_id: string;
 	firstName: string;
 	lastName: string;
-	name: string;
+	otherName: string;
+	phone: string;
 	email: string;
-	staff: string;
-	role: string;
-	status: string;
-	profile_pic: string;
-}
-interface ApiResponse {
-	data: Readers;
+	isEmailVerified: boolean;
+	savingsBalance: number;
+	totalInvestment: number;
+	totalLoans: number;
+	totalAuctions: number;
+	createdAt: string;
+	updatedAt: string;
+	bvn: string;
+	dob: string;
+	gender: string;
+	kycCompleted: boolean;
+	membershipApplicationDate: string;
+	membershipApprovalDate: string;
+	membershipLevel: string;
+	membershipStatus: string;
+	profession: string;
+	source_of_income: string;
+	accountNumber: string;
+	address: string;
+	bank: string;
 }
 
-export type Staff = {
-	id: string;
-	name?: string;
-	date: string;
-	role: string;
-	staff: string;
-	status?: string;
-	email: string;
-	profile_pic?: string;
-};
-
-function CustomerDetails() {
+export default function CustomerDetailsPage() {
 	const { id } = useParams();
-	const [isLoading, setIsLoading] = useState<boolean>(false);
-	const [userData, setUserData] = useState<Readers | null>(null);
-	const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
-	const [isEditModalOpen, setEditModalOpen] = useState(false);
-	const [editData, setEditData] = useState({
-		id: "",
-		firstName: "",
-		lastName: "",
-		email: "",
-		staffId: "",
-		role: "super_admin",
-	});
-
-	const closeRestoreModal = () => {
-		setRestoreModalOpen(false);
-	};
-
-	const openEditModal = () => {
-		setEditData({
-			id: userData?.id ?? "",
-			firstName: userData?.firstName?.split(" ")[0] || "",
-			lastName: userData?.lastName?.split(" ")[1] || "",
-			email: userData?.email ?? "",
-			staffId: userData?.staff ?? "",
-			role: userData?.role ?? "",
-		});
-		setEditModalOpen(true);
-	};
-
-	const closeEditModal = () => {
-		setEditModalOpen(false);
-	};
-
-	const handleEditStaff = async () => {
-		try {
-			setIsLoading(true);
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.post(
-				`https://api.wowdev.com.ng/api/v1/user/${editData.id}`,
-				{
-					first_name: editData.firstName,
-					last_name: editData.lastName,
-					email: editData.email,
-					staff_code: editData.staffId,
-					role: editData.role,
-				},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			console.log("User Data:", response.data);
-
-			if (response.status === 200) {
-				toast.success("Staff updated successfully.");
-				closeEditModal();
-			}
-		} catch (error) {
-			console.error("Error updating staff:", error);
-			toast.error("Failed to update staff. Please try again.");
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const openRestoreModal = () => {
-		setRestoreModalOpen(true);
-	};
-
-	const fetchReaders = useCallback(async () => {
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-			if (!accessToken) {
-				console.error("No access token found.");
-				setIsLoading(false);
-				return;
-			}
-
-			const response = await axios.get<ApiResponse>(
-				`/api/admin/customers/${id}`,
-				{
-					headers: {
-						Accept: "application/json",
-						redirect: "follow",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			console.log("User Data:", response.data);
-
-			setUserData(response?.data?.data);
-		} catch (error: unknown) {
-			if (axios.isAxiosError(error)) {
-				console.log(
-					"Error fetching post:",
-					error.response?.data || error.message
-				);
-			} else {
-				console.log("Unexpected error:", error);
-			}
-		} finally {
-			setIsLoading(false);
-		}
-	}, [id]);
-
-	const suspendStaff = async (id: string) => {
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				console.error("No access token found.");
-				return;
-			}
-
-			const response = await axios.put(
-				`https://api.wowdev.com.ng/api/v1/user/suspend/${id}`,
-				{},
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
-
-			if (response.status === 200) {
-				// Update the staff status in the table
-
-				toast.success("Staff suspended successfully.");
-			}
-		} catch (error) {
-			console.error("Error suspending staff:", error);
-			toast.error("Failed to suspend staff. Please try again.");
-		}
-	};
+	const { data: session } = useSession();
+	const accessToken = session?.accessToken;
+	const [customer, setCustomer] = useState<Customer | null>(null);
+	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		fetchReaders();
-	}, [fetchReaders]);
+		if (!id) return;
+		const fetchCustomer = async () => {
+			try {
+				const res = await fetch(`/api/admin/customers/${id}`, {
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${accessToken}`,
+					},
+				});
+				const data = await res.json();
+				setCustomer(data.data);
+			} catch (err) {
+				console.error("Error fetching customer:", err);
+			} finally {
+				setLoading(false);
+			}
+		};
+		fetchCustomer();
+	}, [id]);
 
-	if (isLoading) {
-		return <Loader />;
+	if (loading) {
+		return (
+			<div className="flex justify-center items-center h-64">
+				<Loader2 className="h-6 w-6 animate-spin" />
+			</div>
+		);
+	}
+
+	if (!customer) {
+		return <div className="p-6">Customer not found.</div>;
 	}
 
 	return (
-		<div>
+		<>
 			<HeaderBox title="Customer Details" />
-			{isEditModalOpen && (
-				<Modal
-					isOpen={isEditModalOpen}
-					onClose={closeEditModal}
-					title="Edit Customer">
-					<div className="bg-white p-0 rounded-lg transition-transform ease-in-out form">
-						<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
-							<div className="flex flex-col gap-2">
-								<p className="text-xs text-primary-6">Full Name</p>
-								<Input
-									type="text"
-									placeholder="Enter Full Name"
-									className="focus:border-none mt-2"
-									value={editData.lastName}
-									onChange={(e) =>
-										setEditData({ ...editData, lastName: e.target.value })
-									}
-								/>
-								<p className="text-xs text-primary-6 mt-2">Email Address</p>
-								<Input
-									type="text"
-									placeholder="Enter Email Address"
-									className="focus:border-none mt-2"
-									value={editData.email}
-									onChange={(e) =>
-										setEditData({ ...editData, email: e.target.value })
-									}
-								/>
-								<p className="text-xs text-primary-6 mt-2">Phone number</p>
-								<Input
-									type="text"
-									placeholder="Enter Phone Number"
-									className="focus:border-none mt-2"
-									value={editData.lastName}
-									onChange={(e) =>
-										setEditData({ ...editData, lastName: e.target.value })
-									}
-								/>
-								<p className="text-xs text-primary-6 mt-2">Account number</p>
-								<Input
-									type="text"
-									placeholder="Enter Account Number"
-									className="focus:border-none mt-2"
-									value={editData.lastName}
-									onChange={(e) =>
-										setEditData({ ...editData, lastName: e.target.value })
-									}
-								/>
-								<p className="text-xs text-primary-6 mt-2">Bank</p>
-								<Input
-									type="text"
-									placeholder="Enter Bank"
-									className="focus:border-none mt-2"
-									value={editData.lastName}
-									onChange={(e) =>
-										setEditData({ ...editData, lastName: e.target.value })
-									}
-								/>
-							</div>
-							<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
-							<div className="flex flex-row justify-end items-center gap-3 font-inter">
-								<Button
-									className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
-									onClick={closeEditModal}>
-									Cancel
-								</Button>
-								<Button
-									className="bg-primary-1 text-white font-inter text-xs"
-									onClick={handleEditStaff}
-									disabled={isLoading}>
-									{isLoading ? "Updating..." : "Update Staff"}
-								</Button>
-							</div>
-						</div>
-					</div>
-				</Modal>
-			)}
+			<div className="p-6 space-y-6">
+				{/* Personal Info */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Personal Information</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<Table>
+							<TableBody>
+								<TableRow>
+									<TableCell className="font-medium">Full Name</TableCell>
+									<TableCell>
+										{customer.firstName} {customer.otherName}{" "}
+										{customer.lastName}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Phone</TableCell>
+									<TableCell>{customer.phone}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Email</TableCell>
+									<TableCell>{customer.email}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Gender</TableCell>
+									<TableCell>{customer.gender}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Date of Birth</TableCell>
+									<TableCell>
+										{new Date(customer.dob).toLocaleDateString()}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Address</TableCell>
+									<TableCell>{customer.address}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">BVN</TableCell>
+									<TableCell>{customer.bvn}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Profession</TableCell>
+									<TableCell>{customer.profession}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">
+										Source of Income
+									</TableCell>
+									<TableCell>{customer.source_of_income}</TableCell>
+								</TableRow>
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
 
-			{isRestoreModalOpen && (
-				<Modal onClose={closeRestoreModal} isOpen={isRestoreModalOpen}>
-					<p className="mt-4">
-						Are you sure you want to suspend this user&apos;s {userData?.name}
-						account?
-					</p>
-					<p className="text-sm text-primary-6">This can&apos;t be undone</p>
-					<div className="flex flex-row justify-end items-center gap-3 font-inter mt-4">
-						<Button
-							className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
-							onClick={closeRestoreModal}>
-							Cancel
-						</Button>
-						<Button
-							className="bg-[#F04F4A] text-white font-inter text-xs modal-delete"
-							onClick={async () => {
-								if (userData?.id) {
-									await suspendStaff(userData.id);
-								} else {
-									toast.error("Staff ID not found.");
-								}
-								closeRestoreModal();
-							}}>
-							Yes, Confirm
-						</Button>
-					</div>
-				</Modal>
-			)}
-			<div className="w-full mx-auto p-6 bg-white rounded-lg shadow-sm">
-				{/* Header Section */}
-				<div className="mb-8">
-					<p className="text-gray-500 text-sm mb-4">Created 10th May, 2023</p>
+				{/* Membership Info */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Membership Details</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<Table>
+							<TableBody>
+								<TableRow>
+									<TableCell className="font-medium">
+										Membership Level
+									</TableCell>
+									<TableCell>{customer.membershipLevel}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">
+										Membership Status
+									</TableCell>
+									<TableCell
+										className={`${
+											customer.membershipStatus === "approved"
+												? "text-green-600"
+												: customer.membershipStatus === "suspended"
+												? "text-red-600"
+												: "text-yellow-600"
+										}`}>
+										{customer.membershipStatus}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">
+										Application Date
+									</TableCell>
+									<TableCell>
+										{new Date(
+											customer.membershipApplicationDate
+										).toLocaleDateString()}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Approval Date</TableCell>
+									<TableCell>
+										{new Date(
+											customer.membershipApprovalDate
+										).toLocaleDateString()}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">KYC Completed</TableCell>
+									<TableCell>{customer.kycCompleted ? "Yes" : "No"}</TableCell>
+								</TableRow>
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
 
-					<div className="flex justify-between items-start">
-						<div className="flex flex-row justify-start items-center gap-2">
-							<Image
-								src={
-									userData?.profile_pic
-										? userData.profile_pic
-										: "/images/use.png"
-								}
-								alt="avatar"
-								width={80}
-								height={80}
-								className="w-15 h-15 rounded-full"
-							/>
-							<div>
-								<h1 className="text-2xl font-semibold">Confidence Clinton</h1>
-								<div className="flex items-center gap-4 mt-2">
-									<span className="text-gray-600">devclinton@gmail.com</span>
-									<span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-										Active
-									</span>
-								</div>
-							</div>
-						</div>
+				{/* Account Info */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Bank Details</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<Table>
+							<TableBody>
+								<TableRow>
+									<TableCell className="font-medium">Bank</TableCell>
+									<TableCell>{customer.bank}</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Account Number</TableCell>
+									<TableCell>{customer.accountNumber}</TableCell>
+								</TableRow>
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
 
-						<div className="flex gap-3">
-							<button
-								className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 flex flex-row justify-between items-center gap-3"
-								onClick={() => openEditModal()}>
-								<IconEdit /> Edit
-							</button>
-							<button
-								className="px-4 py-2 border border-red-300 text-red-600 rounded-md text-sm hover:bg-red-50 flex flex-row justify-between items-center gap-3"
-								onClick={() => openRestoreModal()}>
-								<IconTrash /> Deactivate
-							</button>
-						</div>
-					</div>
-				</div>
+				{/* Financial Info */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Financial Summary</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Savings</TableHead>
+									<TableHead>Investments</TableHead>
+									<TableHead>Loans</TableHead>
+									<TableHead>Auctions</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								<TableRow>
+									<TableCell>₦{customer?.savingsBalance}</TableCell>
+									<TableCell>₦{customer?.totalInvestment}</TableCell>
+									<TableCell>₦{customer?.totalLoans}</TableCell>
+									<TableCell>{customer?.totalAuctions}</TableCell>
+								</TableRow>
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
 
-				{/* Details Sections */}
-				<div className="space-y-8">
-					{/* Personal Details */}
-					<div>
-						<h2 className="text-lg font-medium mb-4 pb-2 border-b border-gray-200">
-							Personal details
-						</h2>
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Email
-								</h3>
-								<p className="text-gray-800">devclinton@gmail.com</p>
-							</div>
-							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Phone number
-								</h3>
-								<p className="text-gray-800">+234 70 302 4563</p>
-							</div>
-							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Home address
-								</h3>
-								<p className="text-gray-800">123 close, Ikeja, Lagos</p>
-							</div>
-							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Total Savings
-								</h3>
-								<p className="text-gray-800">₦400,000</p>
-							</div>
-							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Total Loans
-								</h3>
-								<p className="text-gray-800">₦150,000</p>
-							</div>
-							<div>
-								<h3 className="text-sm font-medium text-gray-500 mb-1">
-									Total Investment
-								</h3>
-								<p className="text-gray-800">₦,400,000</p>
-							</div>
-						</div>
-					</div>
-
-					{/* Account Details */}
-					<div>
-						<h2 className="text-lg font-medium mb-4 pb-2 border-b border-gray-200">
-							Saving History
-						</h2>
-
-						<CustomerSalesTable />
-					</div>
-				</div>
+				{/* System Info */}
+				<Card>
+					<CardHeader>
+						<CardTitle>System Info</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<Table>
+							<TableBody>
+								<TableRow>
+									<TableCell className="font-medium">Email Verified</TableCell>
+									<TableCell>
+										{customer.isEmailVerified ? "Yes" : "No"}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Created At</TableCell>
+									<TableCell>
+										{new Date(customer.createdAt).toLocaleString()}
+									</TableCell>
+								</TableRow>
+								<TableRow>
+									<TableCell className="font-medium">Updated At</TableCell>
+									<TableCell>
+										{new Date(customer.updatedAt).toLocaleString()}
+									</TableCell>
+								</TableRow>
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
 			</div>
-		</div>
+		</>
 	);
 }
-
-export default CustomerDetails;

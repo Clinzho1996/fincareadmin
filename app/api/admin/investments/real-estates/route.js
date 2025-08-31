@@ -1,7 +1,11 @@
 // app/api/admin/investments/route.js
+export const dynamic = "force-dynamic";
+
 import { connectToDatabase } from "@/lib/mongodb";
+import { writeFile } from "fs/promises";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
+import path from "path";
 
 // GET all admin investments
 export async function GET() {
@@ -10,6 +14,7 @@ export async function GET() {
 		const investments = await db
 			.collection("real_estate_investments")
 			.find({})
+			.sort({ createdAt: -1 })
 			.toArray();
 		return NextResponse.json({ investments });
 	} catch (error) {
@@ -24,8 +29,14 @@ export async function GET() {
 // POST: create new investment (admin)
 export async function POST(request) {
 	try {
-		const { name, unitPrice, interestRate, type, maturityDate, image } =
-			await request.json();
+		const formData = await request.formData();
+
+		const name = formData.get("name");
+		const unitPrice = formData.get("unitPrice");
+		const interestRate = formData.get("interestRate");
+		const type = formData.get("type");
+		const maturityDate = formData.get("maturityDate");
+		const imageFile = formData.get("image");
 
 		if (!name || !unitPrice || !interestRate || !type || !maturityDate) {
 			return NextResponse.json(
@@ -36,13 +47,33 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
+		let imagePath = null;
+
+		// Handle image upload if provided
+		if (imageFile && imageFile instanceof File) {
+			const bytes = await imageFile.arrayBuffer();
+			const buffer = Buffer.from(bytes);
+
+			// Generate unique filename
+			const timestamp = Date.now();
+			const ext = path.extname(imageFile.name);
+			const filename = `investment-${timestamp}${ext}`;
+
+			// Save file to public directory
+			const publicDir = path.join(process.cwd(), "public", "uploads");
+			const filepath = path.join(publicDir, filename);
+
+			await writeFile(filepath, buffer);
+			imagePath = `/uploads/${filename}`;
+		}
+
 		const newInvestment = {
 			name,
-			unitPrice,
-			interestRate,
+			unitPrice: Number(unitPrice),
+			interestRate: Number(interestRate),
 			type,
 			maturityDate: new Date(maturityDate),
-			image: image || null,
+			image: imagePath,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};

@@ -27,8 +27,13 @@ export const sidebarLinks = [
 	},
 
 	{
-		label: "Investment Management",
+		label: "Fixed Investment",
 		route: "/investment",
+		imgUrl: "/icons/inventory.svg",
+	},
+	{
+		label: "Real Estate Management",
+		route: "/real-estate-investment",
 		imgUrl: "/icons/inventory.svg",
 	},
 ];
