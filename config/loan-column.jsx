@@ -168,15 +168,15 @@ const AdminLoansDashboard = () => {
 
 	return (
 		<div className=" mx-auto px-4 py-8 mt-4 w-full">
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-				<div className="bg-white p-4 rounded-lg shadow border">
+			<div className="flex flex-row justify-between items-center mb-2 gap-3">
+				<div className="bg-white p-4 rounded-lg shadow border w-full">
 					<h3 className="text-sm font-medium text-gray-600">Total Loans</h3>
 					<p className="text-2xl font-bold mt-1">
 						{analytics ? analytics.summary.total : "—"}
 					</p>
 					<p className="text-xs text-gray-500 mt-1">Last 30 days</p>
 				</div>
-				<div className="bg-white p-4 rounded-lg shadow border">
+				<div className="bg-white p-4 rounded-lg shadow border w-full">
 					<h3 className="text-sm font-medium text-gray-600">Pending Review</h3>
 					<p className="text-2xl font-bold mt-1">
 						{analytics
@@ -186,7 +186,7 @@ const AdminLoansDashboard = () => {
 					</p>
 					<p className="text-xs text-gray-500 mt-1">Requires action</p>
 				</div>
-				<div className="bg-white p-4 rounded-lg shadow border">
+				<div className="bg-white p-4 rounded-lg shadow border w-full">
 					<h3 className="text-sm font-medium text-gray-600">Approved Loans</h3>
 					<p className="text-2xl font-bold mt-1">
 						{analytics
@@ -205,7 +205,7 @@ const AdminLoansDashboard = () => {
 							: "—"}
 					</p>
 				</div>
-				<div className="bg-white p-4 rounded-lg shadow border">
+				<div className="bg-white p-4 rounded-lg shadow border w-full">
 					<h3 className="text-sm font-medium text-gray-600">Total Value</h3>
 					<p className="text-2xl font-bold mt-1">
 						{analytics
