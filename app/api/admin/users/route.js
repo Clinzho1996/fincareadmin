@@ -94,7 +94,8 @@ export async function POST(request) {
 		// email the password
 		await sendWelcomeEmail(email, plainPassword);
 
-		const { password, ...adminWithoutPassword } = newAdmin;
+		const adminWithoutPassword = { ...newAdmin };
+		delete adminWithoutPassword.password;
 
 		return NextResponse.json(
 			{
