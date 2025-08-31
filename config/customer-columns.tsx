@@ -21,7 +21,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { IconEdit, IconEye, IconTrash } from "@tabler/icons-react";
+import {
+	IconEdit,
+	IconEye,
+	IconRestore,
+	IconTrash,
+	IconUserPause,
+} from "@tabler/icons-react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -38,6 +44,7 @@ export type Customer = {
 	email: string;
 	phone: string;
 	totalSavings: number;
+	savingsBalance: number;
 	totalInvestment: number;
 	totalLoans: number;
 	totalAuctions: number;
@@ -314,18 +321,22 @@ const CustomerTable = () => {
 			},
 		},
 		{
-			accessorKey: "address",
-			header: "Home Address",
+			accessorKey: "totalLoans",
+			header: "Total Loans",
 			cell: ({ row }) => {
-				const address = row.original.address || "Not provided";
-				return <span className="text-xs text-primary-6">{address}</span>;
+				const loans = row.original.totalLoans || 0;
+				return (
+					<span className="text-xs text-primary-6">
+						{formatCurrency(loans)}
+					</span>
+				);
 			},
 		},
 		{
-			accessorKey: "totalSavings",
-			header: "Total Savings",
+			accessorKey: "savingsBalance",
+			header: " Savings Balance",
 			cell: ({ row }) => {
-				const savings = row.original.totalSavings || 0;
+				const savings = row.original.savingsBalance || 0;
 				return (
 					<span className="text-xs text-primary-6">
 						{formatCurrency(savings)}
@@ -353,6 +364,30 @@ const CustomerTable = () => {
 				return <span className="text-xs text-primary-6">{phone}</span>;
 			},
 		},
+		{
+			accessorKey: "membershipStatus",
+			header: "Membership Status",
+			cell: ({ row }) => {
+				const status = row.getValue<string>("membershipStatus");
+
+				const statusColors: Record<string, string> = {
+					approved: "status green",
+					pending: "status yellow",
+					suspended: "status red",
+					rejected: "status red",
+				};
+
+				return (
+					<span
+						className={`px-2 py-1 rounded-full text-xs font-medium ${
+							statusColors[status] || "bg-gray-100 text-gray-600"
+						}`}>
+						{status}
+					</span>
+				);
+			},
+		},
+
 		{
 			id: "actions",
 			header: "Action",
@@ -382,6 +417,22 @@ const CustomerTable = () => {
 								<IconEdit />
 								<p className="text-xs font-inter">Edit Customer</p>
 							</DropdownMenuItem>
+
+							{customer.membershipStatus === "approved" ? (
+								<DropdownMenuItem
+									className="action cursor-pointer hover:bg-yellow-300"
+									onClick={() => openRestoreModal(row)}>
+									<IconUserPause />
+									<p className="text-xs font-inter">Suspend</p>
+								</DropdownMenuItem>
+							) : (
+								<DropdownMenuItem
+									className="action cursor-pointer hover:bg-yellow-300"
+									onClick={() => openReactivateModal(row)}>
+									<IconRestore />
+									<p className="text-xs font-inter">Approve</p>
+								</DropdownMenuItem>
+							)}
 
 							<DropdownMenuItem
 								className="action cursor-pointer hover:bg-red-500"

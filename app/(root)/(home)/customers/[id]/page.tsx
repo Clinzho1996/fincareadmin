@@ -132,7 +132,7 @@ function CustomerDetails() {
 			}
 
 			const response = await axios.get<ApiResponse>(
-				`https://api.comicscrolls.com/api/v1/user/${id}`,
+				`/api/admin/customers/${id}`,
 				{
 					headers: {
 						Accept: "application/json",

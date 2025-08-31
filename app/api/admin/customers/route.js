@@ -1,13 +1,13 @@
-// app/api/admin/customers/route.js
 export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
 	try {
-		// Authenticate the request - you might want to add admin-specific authentication
+		// Authenticate the request
 		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
@@ -16,16 +16,18 @@ export async function GET(request) {
 			);
 		}
 
-		// Optional: Add admin role check here if you have admin authentication
-		// For example:
-		const user = await db
-			.collection("users")
-			.findOne({ _id: new ObjectId(authResult.userId) });
-		if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+		// Connect to database first
+		const { db } = await connectToDatabase();
+
+		const token = await getToken({ req: request });
+
+		if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
+			return NextResponse.json(
+				{ error: "Unauthorized. Super admin access required." },
+				{ status: 403 }
+			);
 		}
 
-		const { db } = await connectToDatabase();
 		const { searchParams } = new URL(request.url);
 
 		// Get pagination parameters
