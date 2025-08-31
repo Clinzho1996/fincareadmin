@@ -167,7 +167,7 @@ const AdminLoansDashboard = () => {
 	}
 
 	return (
-		<div className="container mx-auto px-4 py-8 mt-4">
+		<div className=" mx-auto px-4 py-8 mt-4 w-full">
 			<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Total Loans</h3>
