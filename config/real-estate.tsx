@@ -67,6 +67,7 @@ export function RealEstateDataTable() {
 	const [columnVisibility, setColumnVisibility] =
 		React.useState<VisibilityState>({});
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [isSending, setIsSending] = useState(false);
 	const [selectedStatus, setSelectedStatus] = useState<string>("View All");
 	const [globalFilter, setGlobalFilter] = useState("");
 	const [isModalOpen, setModalOpen] = useState(false);
@@ -228,6 +229,7 @@ export function RealEstateDataTable() {
 		}
 
 		try {
+			setIsSending(true); // Start loading
 			const session = await getSession();
 			const accessToken = session?.accessToken;
 
@@ -271,6 +273,8 @@ export function RealEstateDataTable() {
 		} catch (error) {
 			console.error("Error creating investment:", error);
 			toast.error("Something went wrong. Try again.");
+		} finally {
+			setIsSending(false); // End loading
 		}
 	};
 
@@ -468,8 +472,9 @@ export function RealEstateDataTable() {
 							</Button>
 							<Button
 								className="bg-primary-1 text-white font-inter text-xs"
-								onClick={handleAddInvestment}>
-								Add Investment
+								onClick={handleAddInvestment}
+								disabled={isSending}>
+								{isSending ? "Adding..." : "Add Investment"}
 							</Button>
 						</div>
 					</div>

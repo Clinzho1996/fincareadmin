@@ -60,6 +60,8 @@ interface Investment {
 }
 
 export function InvestmentDataTable() {
+	const [isSending, setIsSending] = useState(false);
+
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
 		[]
@@ -228,6 +230,7 @@ export function InvestmentDataTable() {
 		}
 
 		try {
+			setIsSending(true);
 			const session = await getSession();
 			const accessToken = session?.accessToken;
 
@@ -271,6 +274,8 @@ export function InvestmentDataTable() {
 		} catch (error) {
 			console.error("Error creating investment:", error);
 			toast.error("Something went wrong. Try again.");
+		} finally {
+			setIsSending(false); // End loading
 		}
 	};
 
@@ -465,8 +470,9 @@ export function InvestmentDataTable() {
 							</Button>
 							<Button
 								className="bg-primary-1 text-white font-inter text-xs"
-								onClick={handleAddInvestment}>
-								Add Investment
+								onClick={handleAddInvestment}
+								disabled={isSending}>
+								{isSending ? "Adding..." : "Add Investment"}
 							</Button>
 						</div>
 					</div>
