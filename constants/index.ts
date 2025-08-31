@@ -25,7 +25,11 @@ export const sidebarLinks = [
 		route: "/loans",
 		imgUrl: "/icons/orders.svg",
 	},
-
+	{
+		label: "Auction Management",
+		route: "/auctions",
+		imgUrl: "/icons/lecturer.svg",
+	},
 	{
 		label: "Fixed Investment",
 		route: "/investment",
@@ -34,6 +38,6 @@ export const sidebarLinks = [
 	{
 		label: "Real Estate Investment",
 		route: "/real-estate-investment",
-		imgUrl: "/icons/inventory.svg",
+		imgUrl: "/icons/sales.svg",
 	},
 ];
