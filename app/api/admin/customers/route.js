@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import bcrypt from "bcryptjs";
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
