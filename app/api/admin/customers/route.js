@@ -218,15 +218,6 @@ export async function POST(request) {
 			);
 		}
 
-		// Validate phone format (basic validation)
-		const phoneRegex = /^[0-9]{10,15}$/;
-		if (!phoneRegex.test(phone.replace(/\D/g, ""))) {
-			return NextResponse.json(
-				{ error: "Invalid phone number format" },
-				{ status: 400 }
-			);
-		}
-
 		// Connect to database
 		const { db } = await connectToDatabase();
 
@@ -295,8 +286,9 @@ export async function POST(request) {
 		// Send welcome email with login details
 		await sendWelcomeEmail(email, tempPassword);
 
-		// Remove sensitive information before returning
-		const { password, tempPassword: _, ...userWithoutSensitiveData } = newUser;
+		// Remove password from response
+		const userPassword = { ...newUser };
+		delete userPassword.password;
 
 		return NextResponse.json(
 			{
