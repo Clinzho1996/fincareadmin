@@ -17,14 +17,11 @@ function generatePassword(length = 10) {
 
 async function sendWelcomeEmail(email, password) {
 	try {
-		// Create transporter with Brevo SMTP settings
 		const transporter = nodemailer.createTransport({
-			host: process.env.SMTP_HOST, // smtp-relay.brevo.com
-			port: parseInt(process.env.SMTP_PORT), // 587
-			secure: false, // false for port 587
+			service: "gmail",
 			auth: {
-				user: process.env.SMTP_USER, // 7dbddc001@smtp-brevo.com
-				pass: process.env.SMTP_PASS, // Your Brevo SMTP password
+				user: process.env.EMAIL_USER, // Your Gmail address
+				pass: process.env.EMAIL_PASSWORD, // Your App Password (not regular password)
 			},
 		});
 
@@ -34,7 +31,7 @@ async function sendWelcomeEmail(email, password) {
 
 		// Send mail
 		const info = await transporter.sendMail({
-			from: `"Your App Name" <noreply@yourdomain.com>`,
+			from: `"Fincare CMS" <noreply@fincare.com>`,
 			to: email,
 			subject: "Welcome to Our Admin Panel",
 			html: `
