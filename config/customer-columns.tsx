@@ -55,8 +55,8 @@ export type Customer = {
 	updatedAt: string;
 	address?: string;
 	gender?: string;
-	accountNumber?: string;
-	bank?: string;
+	account_number?: string;
+	bank_name?: string;
 };
 
 declare module "next-auth" {
@@ -83,8 +83,8 @@ const CustomerTable = () => {
 		phone: "",
 		address: "",
 		gender: "",
-		accountNumber: "",
-		bank: "",
+		account_number: "",
+		bank_name: "",
 	});
 
 	const openEditModal = (row: any) => {
@@ -97,8 +97,8 @@ const CustomerTable = () => {
 			phone: customer.phone || "",
 			address: customer.address || "",
 			gender: customer.gender || "",
-			accountNumber: customer.accountNumber || "",
-			bank: customer.bank || "",
+			account_number: customer.account_number || "",
+			bank_name: customer.bank_name || "",
 		});
 		setEditModalOpen(true);
 	};
@@ -174,8 +174,8 @@ const CustomerTable = () => {
 					phone: editData.phone,
 					address: editData.address,
 					gender: editData.gender,
-					accountNumber: editData.accountNumber,
-					bank: editData.bank,
+					account_number: editData.account_number,
+					bank_name: editData.bank_name,
 				},
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
@@ -529,26 +529,22 @@ const CustomerTable = () => {
 									type="text"
 									placeholder="Enter Account Number"
 									className="focus:border-none mt-2"
-									value={editData.accountNumber}
+									value={editData.account_number}
 									onChange={(e) =>
-										setEditData({ ...editData, accountNumber: e.target.value })
+										setEditData({ ...editData, account_number: e.target.value })
 									}
 								/>
+
 								<p className="text-xs text-primary-6 mt-2">Bank</p>
-								<Select
-									value={editData.bank}
-									onValueChange={(value) =>
-										setEditData({ ...editData, bank: value })
-									}>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select Bank" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-10 select text-gray-300">
-										<SelectItem value="FCMB">FCMB</SelectItem>
-										<SelectItem value="UBA">UBA</SelectItem>
-										<SelectItem value="Fidelity">Fidelity</SelectItem>
-									</SelectContent>
-								</Select>
+								<Input
+									type="text"
+									placeholder="Enter Bank Name"
+									className="focus:border-none mt-2"
+									value={editData.bank_name}
+									onChange={(e) =>
+										setEditData({ ...editData, bank_name: e.target.value })
+									}
+								/>
 							</div>
 							<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
 							<div className="flex flex-row justify-end items-center gap-3 font-inter">

@@ -89,8 +89,8 @@ export function CustomerDataTable<TData, TValue>({
 	const [firstName, setFirstName] = useState("");
 	const [lastName, setLastName] = useState("");
 	const [email, setEmail] = useState("");
-	const [staffId, setStaffId] = useState("");
-	const [role, setRole] = useState("super_admin");
+	const [phone, setPhone] = useState("");
+	const [address, setAddress] = useState("");
 
 	const openModal = () => setModalOpen(true);
 	const closeModal = () => setModalOpen(false);
@@ -180,23 +180,19 @@ export function CustomerDataTable<TData, TValue>({
 			}
 
 			const payload = {
-				staff_code: staffId,
-				first_name: firstName,
-				last_name: lastName,
+				firstName: firstName,
+				lastName: lastName,
 				email: email,
-				role: role,
+				phone: phone,
+				address: address,
 			};
 
-			const response = await axios.post(
-				"https://api.wowdev.com.ng/api/v1/user/create",
-				payload,
-				{
-					headers: {
-						Accept: "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-				}
-			);
+			const response = await axios.post("/api/admin/customers", payload, {
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${accessToken}`,
+				},
+			});
 
 			if (response.status === 200 || response.status === 201) {
 				await fetchStaffs();
@@ -208,8 +204,8 @@ export function CustomerDataTable<TData, TValue>({
 				setFirstName("");
 				setLastName("");
 				setEmail(" ");
-				setStaffId("");
-				setRole("super_admin");
+				setPhone("");
+				setAddress("");
 			}
 		} catch (error: unknown) {
 			if (axios.isAxiosError(error)) {
@@ -257,13 +253,21 @@ export function CustomerDataTable<TData, TValue>({
 				<div className="bg-white p-0 rounded-lg w-[600px] transition-transform ease-in-out form">
 					<div className="mt-3  pt-2">
 						<div className="flex flex-col gap-2">
-							<p className="text-xs text-primary-6">Full Name</p>
+							<p className="text-xs text-primary-6">First Name</p>
 							<Input
 								type="text"
-								placeholder="Enter Full Name"
+								placeholder="Enter First Name"
 								className="focus:border-none mt-2"
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
+							/>
+							<p className="text-xs text-primary-6">Last Name</p>
+							<Input
+								type="text"
+								placeholder="Enter Last Name"
+								className="focus:border-none mt-2"
+								value={lastName}
+								onChange={(e) => setLastName(e.target.value)}
 							/>
 							<p className="text-xs text-primary-6 mt-2">Email Address</p>
 							<Input
@@ -278,16 +282,16 @@ export function CustomerDataTable<TData, TValue>({
 								type="text"
 								placeholder="Enter Phone Number"
 								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
+								value={phone}
+								onChange={(e) => setPhone(e.target.value)}
 							/>
 							<p className="text-xs text-primary-6 mt-2">Home Address</p>
 							<Input
 								type="text"
 								placeholder="Enter Home Address"
 								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
+								value={address}
+								onChange={(e) => setAddress(e.target.value)}
 							/>
 							<p className="text-xs text-primary-6 mt-2">Gender</p>
 							<Select>
@@ -297,25 +301,6 @@ export function CustomerDataTable<TData, TValue>({
 								<SelectContent className="bg-white z-10 select text-gray-300">
 									<SelectItem value="light">Male</SelectItem>
 									<SelectItem value="dark">Female</SelectItem>
-								</SelectContent>
-							</Select>
-							<p className="text-xs text-primary-6 mt-2">Account Number</p>
-							<Input
-								type="text"
-								placeholder="Enter Account Number"
-								className="focus:border-none mt-2"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-							<p className="text-xs text-primary-6 mt-2">Bank</p>
-							<Select>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select Bank" />
-								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
-									<SelectItem value="light">FCMB</SelectItem>
-									<SelectItem value="dark">UBA</SelectItem>
-									<SelectItem value="system">Fidelity</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
