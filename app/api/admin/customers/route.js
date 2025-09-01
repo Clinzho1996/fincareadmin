@@ -301,7 +301,9 @@ export async function POST(request) {
 		});
 
 		// Remove sensitive data from response
-		const { password: _, ...userWithoutPassword } = newUser;
+
+		const userWithoutPassword = { ...newUser };
+		delete userWithoutPassword.password;
 
 		return NextResponse.json(
 			{
