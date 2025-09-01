@@ -169,6 +169,7 @@ export async function POST(request) {
 		// Authenticate the request
 		const authResult = await authenticate(request);
 		if (authResult.error) {
+			console.error("Authentication error:", authResult.error);
 			return NextResponse.json(
 				{ error: authResult.error },
 				{ status: authResult.status }
@@ -178,6 +179,7 @@ export async function POST(request) {
 		// Check if user is admin or super_admin
 		const token = await getToken({ req: request });
 		if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
+			console.error("Unauthorized access attempt:", token);
 			return NextResponse.json(
 				{ error: "Unauthorized. Admin access required." },
 				{ status: 403 }
@@ -185,6 +187,7 @@ export async function POST(request) {
 		}
 
 		// Parse request body
+		const body = await request.json();
 		const {
 			firstName,
 			lastName,
@@ -200,7 +203,14 @@ export async function POST(request) {
 			account_number = "",
 			account_name = "",
 			address = "",
-		} = await request.json();
+		} = body;
+
+		console.log("Creating user with data:", {
+			firstName,
+			lastName,
+			email,
+			phone,
+		});
 
 		// Validate required fields
 		if (!firstName || !lastName || !email || !phone) {
@@ -272,8 +282,8 @@ export async function POST(request) {
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			createdBy: {
-				adminId: authResult.userId,
-				adminEmail: token.email,
+				adminId: authResult.userId || "unknown",
+				adminEmail: token.email || "unknown",
 				timestamp: new Date(),
 			},
 			adminCreated: true,
@@ -284,21 +294,22 @@ export async function POST(request) {
 		// Insert user into database
 		const result = await db.collection("users").insertOne(newUser);
 
-		// Send welcome email with login details
-		await sendWelcomeEmail(email, tempPassword);
+		// Send welcome email with login details (in background, don't await)
+		sendWelcomeEmail(email, tempPassword).catch((emailError) => {
+			console.error("Failed to send welcome email:", emailError);
+			// Don't fail the request if email fails
+		});
 
-		// Remove password from response
-		const userPassword = { ...newUser };
-		delete userPassword.password;
+		// Remove sensitive data from response
+		const { password: _, ...userWithoutPassword } = newUser;
 
 		return NextResponse.json(
 			{
 				status: "success",
 				message: "Customer created successfully. Login details sent via email.",
 				user: {
-					...userWithoutSensitiveData,
+					...userWithoutPassword,
 					_id: result.insertedId,
-					tempPassword: tempPassword, // still return for admin reference
 				},
 			},
 			{ status: 201 }
