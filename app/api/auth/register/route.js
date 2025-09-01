@@ -63,13 +63,15 @@ export async function POST(request) {
 		const otp = Math.floor(1000 + Math.random() * 9000).toString();
 		const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+		const normalizedEmail = email.toLowerCase().trim();
+
 		// Create user
 		const newUser = {
 			firstName,
 			lastName,
 			otherName: otherName || "",
 			phone,
-			email,
+			email: normalizedEmail,
 			password: hashedPassword,
 			otp,
 			otpExpiry,

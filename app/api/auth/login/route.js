@@ -25,7 +25,14 @@ export async function POST(req) {
 		}
 
 		const { db } = await connectToDatabase();
-		const user = await db.collection("users").findOne({ email });
+
+		// Convert email to lowercase for case-insensitive search
+		const normalizedEmail = email.toLowerCase().trim();
+
+		// Find user with case-insensitive email match
+		const user = await db.collection("users").findOne({
+			email: { $regex: new RegExp(`^${normalizedEmail}$`, "i") },
+		});
 
 		if (!user) {
 			return NextResponse.json(
