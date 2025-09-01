@@ -1,4 +1,3 @@
-// app/api/membership/basic/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -14,11 +13,30 @@ export async function POST(request) {
 			);
 		}
 
-		const { bvn, dob, gender, profession, source_of_income } =
-			await request.json();
+		const {
+			bvn,
+			dob,
+			gender,
+			profession,
+			source_of_income,
+			bank_name,
+			account_number,
+			account_name,
+			address,
+		} = await request.json();
 
 		// Validate required fields
-		if (!bvn || !dob || !gender || !profession || !source_of_income) {
+		if (
+			!bvn ||
+			!dob ||
+			!gender ||
+			!profession ||
+			!source_of_income ||
+			!bank_name ||
+			!account_number ||
+			!account_name ||
+			!address
+		) {
 			return NextResponse.json(
 				{ error: "All fields are required" },
 				{ status: 400 }
@@ -29,6 +47,14 @@ export async function POST(request) {
 		if (!/^\d{11}$/.test(bvn)) {
 			return NextResponse.json(
 				{ error: "BVN must be 11 digits" },
+				{ status: 400 }
+			);
+		}
+
+		// Validate account number format (10 digits)
+		if (!/^\d{10}$/.test(account_number)) {
+			return NextResponse.json(
+				{ error: "Account number must be 10 digits" },
 				{ status: 400 }
 			);
 		}
@@ -68,6 +94,19 @@ export async function POST(request) {
 			);
 		}
 
+		// Check if account number is already registered by another user
+		const existingAccount = await db.collection("users").findOne({
+			account_number: account_number,
+			_id: { $ne: new ObjectId(authResult.userId) },
+		});
+
+		if (existingAccount) {
+			return NextResponse.json(
+				{ error: "Account number already registered by another user" },
+				{ status: 400 }
+			);
+		}
+
 		// Update user with membership information
 		const updateData = {
 			bvn,
@@ -75,6 +114,10 @@ export async function POST(request) {
 			gender: gender.toLowerCase(),
 			profession,
 			source_of_income,
+			bank_name,
+			account_number,
+			account_name,
+			address,
 			membershipLevel: "basic",
 			membershipStatus: "approved",
 			membershipApplicationDate: new Date(),
@@ -150,6 +193,10 @@ export async function GET(request) {
 					gender: 1,
 					profession: 1,
 					source_of_income: 1,
+					bank_name: 1,
+					account_number: 1,
+					account_name: 1,
+					address: 1,
 				},
 			}
 		);
@@ -173,6 +220,10 @@ export async function GET(request) {
 				gender: user.gender,
 				profession: user.profession,
 				source_of_income: user.source_of_income,
+				bank_name: user.bank_name,
+				account_number: user.account_number,
+				account_name: user.account_name,
+				address: user.address,
 			},
 		});
 	} catch (error) {
