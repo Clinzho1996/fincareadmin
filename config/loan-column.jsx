@@ -271,12 +271,82 @@ const AdminLoansDashboard = () => {
 		);
 	};
 
+	// app/admin/loans/page.jsx
+	// Update the fee display logic to handle both structures
 	const formatCurrency = (amount) => {
+		if (amount === undefined || amount === null) return "₦0.00";
 		return new Intl.NumberFormat("en-NG", {
 			style: "currency",
 			currency: "NGN",
-		}).format(amount || 0);
+		}).format(amount);
 	};
+
+	// Add helper functions to get loan details safely
+	const getLoanDetails = (loan) => {
+		// For old loans without loanDetails, calculate on the fly
+		if (!loan.loanDetails) {
+			const LOAN_INTEREST_RATE = 0.1;
+			const LOAN_PROCESSING_FEE_RATE = 0.01;
+
+			const principalAmount = Number(loan.loanAmount);
+			const duration = Number(loan.duration);
+
+			const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
+			const interestAmount =
+				principalAmount * LOAN_INTEREST_RATE * (duration / 12);
+			const totalLoanAmount = principalAmount + interestAmount;
+			const monthlyInstallment = totalLoanAmount / duration;
+
+			return {
+				principalAmount,
+				processingFee,
+				interestRate: LOAN_INTEREST_RATE,
+				interestAmount,
+				totalLoanAmount,
+				monthlyInstallment,
+				remainingBalance: totalLoanAmount,
+				paidAmount: 0,
+				processingFeePaid: false,
+			};
+		}
+
+		return loan.loanDetails;
+	};
+
+	{
+		loans.map((loan) => {
+			return (
+				<tr key={loan._id}>
+					{/* Other cells… */}
+
+					<td className="px-6 py-4 whitespace-nowrap">
+						{(() => {
+							const details = getLoanDetails(loan);
+							return (
+								<>
+									<div className="text-sm">
+										<span className="font-medium">Fee: </span>
+										{formatCurrency(details.processingFee)}
+										{getProcessingFeeBadge(details.processingFeePaid)}
+									</div>
+									<div className="text-sm text-gray-500">
+										<span className="font-medium">Interest: </span>
+										{formatCurrency(details.interestAmount)}
+									</div>
+									<div className="text-sm text-gray-400">
+										<span className="font-medium">Total: </span>
+										{formatCurrency(details.totalLoanAmount)}
+									</div>
+								</>
+							);
+						})()}
+					</td>
+
+					{/* More cells… */}
+				</tr>
+			);
+		});
+	}
 
 	const formatDate = (dateString) => {
 		return new Date(dateString).toLocaleDateString("en-US", {
@@ -798,7 +868,7 @@ const AdminLoansDashboard = () => {
 
 						<div className="flex justify-end border-t pt-4 mt-4 gap-2">
 							<button
-								className="px-4 py-2 border rounded-md"
+								className="px-4 py-2 border rounded-md mt-4"
 								onClick={() => setIsDetailModalOpen(false)}>
 								Close
 							</button>

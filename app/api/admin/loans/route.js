@@ -69,9 +69,19 @@ export async function GET(request) {
 			.limit(limit)
 			.toArray();
 
+		const enhancedLoans = loans.map((loan) => {
+			if (!loan.loanDetails) {
+				return {
+					...loan,
+					loanDetails: calculateLoanDetails(loan),
+				};
+			}
+			return loan;
+		});
+
 		return NextResponse.json({
 			status: "success",
-			loans,
+			loans: enhancedLoans,
 			pagination: {
 				page,
 				limit,
@@ -151,6 +161,33 @@ export async function PATCH(request) {
 		);
 	}
 }
+
+const calculateLoanDetails = (loan) => {
+	const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
+	const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
+
+	const principalAmount = Number(loan.loanAmount);
+	const duration = Number(loan.duration);
+
+	// Calculate loan details
+	const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
+	const interestAmount = principalAmount * LOAN_INTEREST_RATE * (duration / 12);
+	const totalLoanAmount = principalAmount + interestAmount;
+	const monthlyInstallment = totalLoanAmount / duration;
+
+	return {
+		principalAmount,
+		processingFee,
+		interestRate: LOAN_INTEREST_RATE,
+		interestAmount,
+		totalLoanAmount,
+		monthlyInstallment,
+		remainingBalance: totalLoanAmount,
+		paidAmount: 0,
+		processingFeePaid: false,
+		...loan.loanDetails,
+	};
+};
 
 // Helper function to handle loan status updates
 async function handleStatusUpdate(db, loan, status) {
