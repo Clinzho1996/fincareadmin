@@ -83,7 +83,6 @@ export async function GET(request, { params }) {
 }
 
 // POST - Place a new bid on an auction
-// POST - Place a new bid on an auction
 export async function POST(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -91,6 +90,14 @@ export async function POST(request, { params }) {
 			return NextResponse.json(
 				{ error: authResult.error },
 				{ status: authResult.status }
+			);
+		}
+
+		// Check if userId exists in authResult
+		if (!authResult.userId) {
+			return NextResponse.json(
+				{ error: "User authentication failed" },
+				{ status: 401 }
 			);
 		}
 
@@ -124,8 +131,20 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
+		// Check if auction has a userId and it's valid
+		if (!auction.userId || !ObjectId.isValid(auction.userId)) {
+			return NextResponse.json(
+				{ error: "Invalid auction owner information" },
+				{ status: 400 }
+			);
+		}
+
+		// Convert both IDs to string for safe comparison
+		const auctionUserIdStr = auction.userId.toString();
+		const authUserIdStr = authResult.userId.toString();
+
 		// Cannot bid on your own auction
-		if (auction.userId.toString() === authResult.userId.toString()) {
+		if (auctionUserIdStr === authUserIdStr) {
 			return NextResponse.json(
 				{ error: "Cannot bid on your own auction" },
 				{ status: 400 }
