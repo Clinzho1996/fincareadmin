@@ -83,6 +83,7 @@ export async function GET(request, { params }) {
 }
 
 // POST - Place a new bid on an auction
+// POST - Place a new bid on an auction
 export async function POST(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -102,11 +103,12 @@ export async function POST(request, { params }) {
 			);
 		}
 
-		const { amount } = await request.json();
+		const { amount, bidType, percentage } = await request.json();
 
-		if (!amount || amount <= 0) {
+		// Validate bid type
+		if (!bidType || (bidType !== "absolute" && bidType !== "percentage")) {
 			return NextResponse.json(
-				{ error: "Valid bid amount is required" },
+				{ error: "Valid bid type is required (absolute or percentage)" },
 				{ status: 400 }
 			);
 		}
@@ -130,7 +132,7 @@ export async function POST(request, { params }) {
 			);
 		}
 
-		// Cannot bid on your own auction - FIXED: Proper comparison
+		// Cannot bid on your own auction
 		if (auction.userId.toString() === authResult.userId.toString()) {
 			return NextResponse.json(
 				{ error: "Cannot bid on your own auction" },
@@ -151,18 +153,58 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction has ended" }, { status: 400 });
 		}
 
+		let finalAmount = amount;
+
+		// Handle percentage-based bidding
+		if (bidType === "percentage") {
+			if (!percentage || percentage <= 0 || percentage > 100) {
+				return NextResponse.json(
+					{
+						error:
+							"Valid percentage between 1 and 100 is required for percentage bids",
+					},
+					{ status: 400 }
+				);
+			}
+
+			// Calculate amount based on percentage of total investment value
+			if (!auction.totalInvestmentValue || auction.totalInvestmentValue <= 0) {
+				return NextResponse.json(
+					{
+						error:
+							"Auction does not have a valid total investment value for percentage bidding",
+					},
+					{ status: 400 }
+				);
+			}
+
+			finalAmount = (percentage / 100) * auction.totalInvestmentValue;
+		} else {
+			// Validate absolute amount
+			if (!amount || amount <= 0) {
+				return NextResponse.json(
+					{ error: "Valid bid amount is required" },
+					{ status: 400 }
+				);
+			}
+		}
+
 		// Check if bid meets reserve price
-		if (amount < auction.reservePrice) {
+		if (finalAmount < auction.reservePrice) {
 			return NextResponse.json(
-				{ error: "Bid must meet or exceed reserve price" },
+				{
+					error: `Bid must meet or exceed reserve price of ₦${auction.reservePrice.toLocaleString()}`,
+				},
 				{ status: 400 }
 			);
 		}
 
 		// Check if bid is higher than current bid
-		if (amount <= auction.currentBid) {
+		if (finalAmount <= auction.currentBid) {
 			return NextResponse.json(
-				{ error: "Bid must be higher than current bid" },
+				{
+					error: `Bid must be higher than current bid of ₦${auction.currentBid.toLocaleString()}`,
+				},
 				{ status: 400 }
 			);
 		}
@@ -172,7 +214,7 @@ export async function POST(request, { params }) {
 			.collection("users")
 			.findOne({ _id: new ObjectId(authResult.userId) });
 
-		if (!user || user.savingsBalance < amount) {
+		if (!user || user.savingsBalance < finalAmount) {
 			return NextResponse.json(
 				{ error: "Insufficient funds to place bid" },
 				{ status: 400 }
@@ -184,7 +226,7 @@ export async function POST(request, { params }) {
 			.collection("users")
 			.updateOne(
 				{ _id: new ObjectId(authResult.userId) },
-				{ $inc: { savingsBalance: -amount } }
+				{ $inc: { savingsBalance: -finalAmount } }
 			);
 
 		// If there was a previous highest bid, refund that user
@@ -213,11 +255,13 @@ export async function POST(request, { params }) {
 			}
 		}
 
-		// Create the new bid - FIXED: Correct bid structure
+		// Create the new bid with bid type and percentage if applicable
 		const newBid = {
 			auctionId: new ObjectId(id),
 			userId: new ObjectId(authResult.userId),
-			amount: amount,
+			amount: finalAmount,
+			bidType: bidType,
+			...(bidType === "percentage" && { percentage: percentage }),
 			status: "leading",
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -230,7 +274,7 @@ export async function POST(request, { params }) {
 			{ _id: new ObjectId(id) },
 			{
 				$set: {
-					currentBid: amount,
+					currentBid: finalAmount,
 					updatedAt: new Date(),
 				},
 			}
@@ -244,7 +288,7 @@ export async function POST(request, { params }) {
 
 			if (auctionOwner) {
 				console.log(
-					`Auction "${auction.auctionName}" has received its first bid of ${amount}`
+					`Auction "${auction.auctionName}" has received its first bid of ${finalAmount}`
 				);
 				// In a real app, send notification/email to auctionOwner.email
 			}
@@ -254,6 +298,9 @@ export async function POST(request, { params }) {
 			{
 				message: "Bid placed successfully",
 				bidId: result.insertedId,
+				amount: finalAmount,
+				bidType: bidType,
+				...(bidType === "percentage" && { percentage: percentage }),
 			},
 			{ status: 201 }
 		);
