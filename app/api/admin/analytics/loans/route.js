@@ -32,6 +32,29 @@ export async function GET(request) {
 				{
 					$match: { createdAt: { $gte: startDate } },
 				},
+				// 🟢 Fix: Clean up duration (extract number from "5 months")
+				{
+					$addFields: {
+						durationNumStr: {
+							$regexFind: {
+								input: "$duration",
+								regex: /^[0-9]+/,
+							},
+						},
+					},
+				},
+				{
+					$addFields: {
+						durationNum: {
+							$convert: {
+								input: { $ifNull: ["$durationNumStr.match", "0"] },
+								to: "int",
+								onError: 0,
+								onNull: 0,
+							},
+						},
+					},
+				},
 				{
 					$group: {
 						_id: {
@@ -54,12 +77,7 @@ export async function GET(request) {
 										$multiply: [
 											{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
 											LOAN_INTEREST_RATE,
-											{
-												$divide: [
-													{ $toDouble: { $ifNull: ["$duration", 0] } },
-													12,
-												],
-											},
+											{ $divide: ["$durationNum", 12] }, // 🟢 use cleaned number
 										],
 									},
 								},
@@ -139,12 +157,7 @@ export async function GET(request) {
 												$multiply: [
 													{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
 													LOAN_INTEREST_RATE,
-													{
-														$divide: [
-															{ $toDouble: { $ifNull: ["$duration", 0] } },
-															12,
-														],
-													},
+													{ $divide: ["$durationNum", 12] }, // 🟢 fixed
 												],
 											},
 										],
@@ -155,7 +168,7 @@ export async function GET(request) {
 						avgLoanAmount: {
 							$avg: { $toDouble: { $ifNull: ["$loanAmount", 0] } },
 						},
-						avgDuration: { $avg: { $toDouble: { $ifNull: ["$duration", 0] } } },
+						avgDuration: { $avg: "$durationNum" }, // 🟢 fixed
 					},
 				},
 				{ $sort: { "_id.year": 1, "_id.month": 1 } },

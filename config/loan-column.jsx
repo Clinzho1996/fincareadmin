@@ -313,40 +313,6 @@ const AdminLoansDashboard = () => {
 		return loan.loanDetails;
 	};
 
-	{
-		loans.map((loan) => {
-			return (
-				<tr key={loan._id}>
-					{/* Other cells… */}
-
-					<td className="px-6 py-4 whitespace-nowrap">
-						{(() => {
-							const details = getLoanDetails(loan);
-							return (
-								<>
-									<div className="text-sm">
-										<span className="font-medium">Fee: </span>
-										{formatCurrency(details.processingFee)}
-										{getProcessingFeeBadge(details.processingFeePaid)}
-									</div>
-									<div className="text-sm text-gray-500">
-										<span className="font-medium">Interest: </span>
-										{formatCurrency(details.interestAmount)}
-									</div>
-									<div className="text-sm text-gray-400">
-										<span className="font-medium">Total: </span>
-										{formatCurrency(details.totalLoanAmount)}
-									</div>
-								</>
-							);
-						})()}
-					</td>
-
-					{/* More cells… */}
-				</tr>
-			);
-		});
-	}
 
 	const formatDate = (dateString) => {
 		return new Date(dateString).toLocaleDateString("en-US", {
@@ -873,7 +839,7 @@ const AdminLoansDashboard = () => {
 
 						<div className="flex justify-end border-t pt-4 mt-4 gap-2">
 							<button
-								className="px-4 py-2 border rounded-md mt-4"
+								className="px-4 py-2 border rounded-md"
 								onClick={() => setIsDetailModalOpen(false)}>
 								Close
 							</button>
