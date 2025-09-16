@@ -43,11 +43,21 @@ const AdminLoansDashboard = () => {
 	const fetchAnalytics = async () => {
 		try {
 			const res = await fetch("/api/admin/analytics/loans?period=30d");
-			if (!res.ok) throw new Error("Failed to fetch loan analytics");
+			if (!res.ok) {
+				console.error("Analytics fetch failed:", res.status, res.statusText);
+				throw new Error(`Failed to fetch loan analytics: ${res.status}`);
+			}
 			const data = await res.json();
-			setAnalytics(data.data);
+
+			if (data.status === "success") {
+				setAnalytics(data.data);
+			} else {
+				console.error("Analytics API error:", data.error);
+				throw new Error(data.error || "Failed to fetch analytics data");
+			}
 		} catch (err) {
 			console.error("Analytics fetch error:", err);
+			// Don't show alert for analytics errors as they're not critical
 		}
 	};
 
@@ -281,39 +291,6 @@ const AdminLoansDashboard = () => {
 		}).format(amount);
 	};
 
-	// Add helper functions to get loan details safely
-	const getLoanDetails = (loan) => {
-		// For old loans without loanDetails, calculate on the fly
-		if (!loan.loanDetails) {
-			const LOAN_INTEREST_RATE = 0.1;
-			const LOAN_PROCESSING_FEE_RATE = 0.01;
-
-			const principalAmount = Number(loan.loanAmount);
-			const duration = Number(loan.duration);
-
-			const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
-			const interestAmount =
-				principalAmount * LOAN_INTEREST_RATE * (duration / 12);
-			const totalLoanAmount = principalAmount + interestAmount;
-			const monthlyInstallment = totalLoanAmount / duration;
-
-			return {
-				principalAmount,
-				processingFee,
-				interestRate: LOAN_INTEREST_RATE,
-				interestAmount,
-				totalLoanAmount,
-				monthlyInstallment,
-				remainingBalance: totalLoanAmount,
-				paidAmount: 0,
-				processingFeePaid: false,
-			};
-		}
-
-		return loan.loanDetails;
-	};
-
-
 	const formatDate = (dateString) => {
 		return new Date(dateString).toLocaleDateString("en-US", {
 			year: "numeric",
@@ -333,6 +310,62 @@ const AdminLoansDashboard = () => {
 		return months;
 	};
 
+	// Add this helper function to calculate missing loan details
+	const calculateLoanDetails = (loan) => {
+		const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
+		const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
+		const DEFAULT_LOAN_DURATION = 12; // 1 year default
+
+		// Parse duration from string or use default
+		let duration = DEFAULT_LOAN_DURATION;
+		if (loan.duration) {
+			if (typeof loan.duration === "number") {
+				duration = loan.duration;
+			} else if (typeof loan.duration === "string") {
+				// Extract numbers from string like "5 months"
+				const match = loan.duration.match(/(\d+)/);
+				duration = match ? parseInt(match[1]) : DEFAULT_LOAN_DURATION;
+			}
+		}
+
+		const principalAmount = Number(loan.loanAmount);
+		const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
+
+		// Calculate interest (10% per annum for the loan duration)
+		const interestAmount =
+			principalAmount * LOAN_INTEREST_RATE * (duration / 12);
+		const totalLoanAmount = principalAmount + interestAmount;
+		const monthlyInstallment = duration > 0 ? totalLoanAmount / duration : 0;
+
+		// Return enhanced loan details, preserving existing values if they exist
+		return {
+			principalAmount: loan.loanDetails?.principalAmount || principalAmount,
+			processingFee: loan.loanDetails?.processingFee || processingFee,
+			interestRate: LOAN_INTEREST_RATE,
+			interestAmount: loan.loanDetails?.interestAmount || interestAmount,
+			totalLoanAmount: loan.loanDetails?.totalLoanAmount || totalLoanAmount,
+			monthlyInstallment:
+				loan.loanDetails?.monthlyInstallment || monthlyInstallment,
+			remainingBalance: loan.loanDetails?.remainingBalance || totalLoanAmount,
+			paidAmount: loan.loanDetails?.paidAmount || 0,
+			processingFeePaid: loan.loanDetails?.processingFeePaid || false,
+		};
+	};
+
+	// Update the getLoanDetails function to use the calculation
+	const getLoanDetails = (loan) => {
+		// For loans without proper loanDetails or with null values, calculate on the fly
+		if (
+			!loan.loanDetails ||
+			loan.loanDetails.interestAmount === null ||
+			loan.loanDetails.totalLoanAmount === null
+		) {
+			return calculateLoanDetails(loan);
+		}
+
+		return loan.loanDetails;
+	};
+
 	if (error) {
 		return (
 			<div className="container mx-auto px-4 py-8">
@@ -346,9 +379,7 @@ const AdminLoansDashboard = () => {
 
 	return (
 		<div className="mx-auto px-4 py-8 mt-4 w-full">
-			{/* Analytics Dashboard */}
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-				{/* Total Loans */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Total Loans</h3>
 					<p className="text-2xl font-bold mt-1">
@@ -357,7 +388,6 @@ const AdminLoansDashboard = () => {
 					<p className="text-xs text-gray-500 mt-1">Last 30 days</p>
 				</div>
 
-				{/* Pending Review */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Pending Review</h3>
 					<p className="text-2xl font-bold mt-1">
@@ -366,7 +396,6 @@ const AdminLoansDashboard = () => {
 					<p className="text-xs text-gray-500 mt-1">Requires action</p>
 				</div>
 
-				{/* Total Loan Value */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">
 						Total Loan Value
@@ -379,7 +408,6 @@ const AdminLoansDashboard = () => {
 					<p className="text-xs text-gray-500 mt-1">All time</p>
 				</div>
 
-				{/* Pending Fees */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Pending Fees</h3>
 					<p className="text-2xl font-bold mt-1">
@@ -390,7 +418,6 @@ const AdminLoansDashboard = () => {
 					<p className="text-xs text-gray-500 mt-1">Unpaid processing fees</p>
 				</div>
 			</div>
-
 			{/* Main Content */}
 			<div className="bg-white rounded-lg shadow border">
 				<div className="p-6 border-b">
@@ -518,18 +545,18 @@ const AdminLoansDashboard = () => {
 											<td className="px-6 py-4 whitespace-nowrap">
 												<div className="text-sm">
 													<span className="font-medium">Fee: </span>
-													{formatCurrency(loan.loanDetails?.processingFee)}
+													{formatCurrency(getLoanDetails(loan).processingFee)}
 													{getProcessingFeeBadge(
-														loan.loanDetails?.processingFeePaid
+														getLoanDetails(loan).processingFeePaid
 													)}
 												</div>
 												<div className="text-sm text-gray-500">
 													<span className="font-medium">Interest: </span>
-													{formatCurrency(loan.loanDetails?.interestAmount)}
+													{formatCurrency(getLoanDetails(loan).interestAmount)}
 												</div>
 												<div className="text-sm text-gray-400">
 													<span className="font-medium">Total: </span>
-													{formatCurrency(loan.loanDetails?.totalLoanAmount)}
+													{formatCurrency(getLoanDetails(loan).totalLoanAmount)}
 												</div>
 											</td>
 
@@ -675,7 +702,6 @@ const AdminLoansDashboard = () => {
 					)}
 				</div>
 			</div>
-
 			{/* Loan Detail Modal */}
 			<Modal
 				title="Loan Application Details"
@@ -711,6 +737,7 @@ const AdminLoansDashboard = () => {
 							</div>
 
 							{/* Loan Information */}
+							{/* Loan Information */}
 							<div className="bg-gray-50 p-4 rounded-lg">
 								<h3 className="font-medium text-gray-700 text-lg mb-3">
 									Loan Information
@@ -718,33 +745,52 @@ const AdminLoansDashboard = () => {
 								<div className="space-y-2">
 									<p>
 										<span className="font-semibold">Principal:</span>{" "}
-										{formatCurrency(selectedLoan.loanAmount)}
+										{formatCurrency(
+											getLoanDetails(selectedLoan).principalAmount
+										)}
 									</p>
 									<p>
 										<span className="font-semibold">Interest (10%):</span>{" "}
-										{formatCurrency(selectedLoan.loanDetails?.interestAmount)}
+										{formatCurrency(
+											getLoanDetails(selectedLoan).interestAmount
+										)}
 									</p>
 									<p>
 										<span className="font-semibold">Processing Fee (1%):</span>{" "}
-										{formatCurrency(selectedLoan.loanDetails?.processingFee)}
+										{formatCurrency(getLoanDetails(selectedLoan).processingFee)}
 									</p>
 									<p>
 										<span className="font-semibold">Total Amount:</span>{" "}
-										{formatCurrency(selectedLoan.loanDetails?.totalLoanAmount)}
+										{formatCurrency(
+											getLoanDetails(selectedLoan).totalLoanAmount
+										)}
 									</p>
 									<p>
 										<span className="font-semibold">Monthly Payment:</span>{" "}
 										{formatCurrency(
-											selectedLoan.loanDetails?.monthlyInstallment
+											getLoanDetails(selectedLoan).monthlyInstallment
 										)}
 									</p>
 									<p>
 										<span className="font-semibold">Remaining Balance:</span>{" "}
-										{formatCurrency(selectedLoan.loanDetails?.remainingBalance)}
+										{formatCurrency(
+											getLoanDetails(selectedLoan).remainingBalance
+										)}
 									</p>
 									<p>
 										<span className="font-semibold">Duration:</span>{" "}
-										{selectedLoan.duration} months
+										{(() => {
+											// Extract duration from loan object
+											let duration = "12 months"; // default
+											if (selectedLoan.duration) {
+												if (typeof selectedLoan.duration === "number") {
+													duration = `${selectedLoan.duration} months`;
+												} else if (typeof selectedLoan.duration === "string") {
+													duration = selectedLoan.duration;
+												}
+											}
+											return duration;
+										})()}
 									</p>
 									<p>
 										<span className="font-semibold">Purpose:</span>{" "}
@@ -753,7 +799,7 @@ const AdminLoansDashboard = () => {
 									<p>
 										<span className="font-semibold">Processing Fee Paid:</span>{" "}
 										{getProcessingFeeBadge(
-											selectedLoan.loanDetails?.processingFeePaid
+											getLoanDetails(selectedLoan).processingFeePaid
 										)}
 									</p>
 								</div>
