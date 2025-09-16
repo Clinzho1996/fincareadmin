@@ -126,8 +126,8 @@ export async function PATCH(request) {
 				// Add amount to user's savings balance
 				userUpdate = {
 					$inc: {
-						savingsBalance: saving.amount || saving.currentBalance || 0,
-						totalSavings: saving.amount || saving.currentBalance || 0,
+						savingsBalance: saving.amount || saving.totalAmount || 0,
+						totalSavings: saving.amount || saving.totalAmount || 0,
 					},
 				};
 				break;
@@ -150,6 +150,7 @@ export async function PATCH(request) {
 				}
 				updateData = {
 					amount: Number(amount),
+					totalAmount: Number(amount),
 					currentBalance: Number(amount),
 					updatedAt: new Date(),
 				};
