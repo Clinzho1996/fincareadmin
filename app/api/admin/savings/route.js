@@ -73,6 +73,7 @@ export async function GET(request) {
 	}
 }
 
+// app/api/admin/savings/route.js - Update the PATCH method
 export async function PATCH(request) {
 	try {
 		const token = await getToken({ req: request });
@@ -116,6 +117,9 @@ export async function PATCH(request) {
 					);
 				}
 
+				// Get the amount to add to user's balance
+				const depositAmount = saving.amount || saving.currentBalance || 0;
+
 				updateData = {
 					status: "verified",
 					verifiedAt: new Date(),
@@ -126,8 +130,8 @@ export async function PATCH(request) {
 				// Add amount to user's savings balance
 				userUpdate = {
 					$inc: {
-						savingsBalance: saving.amount || saving.totalAmount || 0,
-						totalSavings: saving.amount || saving.totalAmount || 0,
+						savingsBalance: depositAmount,
+						totalSavings: depositAmount,
 					},
 				};
 				break;
@@ -150,7 +154,6 @@ export async function PATCH(request) {
 				}
 				updateData = {
 					amount: Number(amount),
-					totalAmount: Number(amount),
 					currentBalance: Number(amount),
 					updatedAt: new Date(),
 				};
