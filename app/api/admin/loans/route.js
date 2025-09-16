@@ -5,6 +5,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+import nodemailer from "nodemailer";
 
 export async function GET(request) {
 	try {
@@ -276,24 +277,59 @@ async function handleResendEmail(loan) {
 }
 
 // Helper function to send loan approval email (pseudo-code)
-async function sendLoanApprovalEmail(loan) {
-	// In a real application, implement email sending logic
-	console.log(`Sending loan approval email to ${loan.borrowerDetails.email}`);
-	console.log(`Loan details:`);
-	console.log(`- Amount: $${loan.loanAmount}`);
-	console.log(`- Interest: $${loan.loanDetails.interestAmount}`);
-	console.log(`- Processing fee: $${loan.loanDetails.processingFee}`);
-	console.log(`- Total repayment: $${loan.loanDetails.totalLoanAmount}`);
-	console.log("Terms and conditions would be included in the email");
 
-	// Example using a hypothetical email service:
-	// await emailService.send({
-	//   to: loan.borrowerDetails.email,
-	//   subject: "Loan Approval - Terms and Conditions",
-	//   template: "loan-approval",
-	//   data: {
-	//     loanDetails: loan.loanDetails,
-	//     borrowerDetails: loan.borrowerDetails
-	//   }
-	// });
+async function sendLoanApprovalEmail(loan) {
+	console.log(
+		`Preparing to send loan approval email to ${loan.borrowerDetails.email}`
+	);
+
+	try {
+		// Create transporter
+		const transporter = nodemailer.createTransport({
+			service: "gmail",
+			auth: {
+				user: process.env.EMAIL_USER, // Your Gmail address
+				pass: process.env.EMAIL_PASSWORD, // Your Gmail App Password
+			},
+		});
+
+		// Verify transporter connection
+		await transporter.verify();
+
+		// Build email content
+		const info = await transporter.sendMail({
+			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
+			to: loan.borrowerDetails.email,
+			subject: "Your Loan Application Has Been Approved",
+			html: `
+				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+					<h2 style="color: #333;">Congratulations, ${loan.borrowerDetails.fullName}!</h2>
+					<p>Your loan application has been <strong>approved</strong>.</p>
+					<p>Here are your loan details:</p>
+					<div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+						<p><strong>Amount:</strong> $${loan.loanAmount}</p>
+						<p><strong>Interest:</strong> $${loan.loanDetails.interestAmount}</p>
+						<p><strong>Processing fee:</strong> $${loan.loanDetails.processingFee}</p>
+						<p><strong>Total repayment:</strong> $${loan.loanDetails.totalLoanAmount}</p>
+						<p><strong>Monthly Installment:</strong> $${loan.loanDetails.monthlyInstallment.toFixed(
+							2
+						)}</p>
+					</div>
+					<p style="color: #ff0000;">
+						Please review the attached terms and conditions carefully before proceeding with repayment.
+					</p>
+					<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+					<p style="color: #888; font-size: 12px;">
+						If you did not request this loan, please contact support immediately at support@fincare.com.
+					</p>
+				</div>
+			`,
+		});
+
+		console.log("Loan approval email sent: %s", info.messageId);
+		return true;
+	} catch (error) {
+		console.error("Error sending loan approval email:", error);
+		return false;
+	}
 }

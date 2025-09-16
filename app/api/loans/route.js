@@ -303,18 +303,30 @@ async function handleProcessingFeePayment(db, loan, userId) {
 		);
 	}
 
-	// In a real application, you would process the payment here
-	// For this example, we'll just mark it as paid
-
+	// Mark processing fee as paid & record payment under the user
 	await db.collection("loans").updateOne(
-		{ _id: loan._id },
+		{ _id: loan._id, userId }, // <-- use userId in the query
 		{
 			$set: {
 				"loanDetails.processingFeePaid": true,
 				updatedAt: new Date(),
 			},
+			$push: {
+				payments: {
+					amount: loan.loanDetails.processingFee,
+					type: "processing-fee",
+					date: new Date(),
+					description: "Loan processing fee payment",
+				},
+			},
 		}
 	);
+
+	// Optionally, update user’s account record if you track balances
+	// await db.collection("users").updateOne(
+	// 	{ _id: new ObjectId(userId) },
+	// 	{ $inc: { totalFeesPaid: loan.loanDetails.processingFee } }
+	// );
 
 	return NextResponse.json({
 		message: "Processing fee paid successfully",
@@ -323,15 +335,60 @@ async function handleProcessingFeePayment(db, loan, userId) {
 }
 
 // Helper function to send loan approval email (pseudo-code)
+import nodemailer from "nodemailer";
+
 async function sendLoanApprovalEmail(loan) {
-	// In a real application, you would implement email sending logic here
-	// This would send terms and conditions for the borrower to accept or reject
+	console.log(
+		`Preparing to send loan approval email to ${loan.borrowerDetails.email}`
+	);
 
-	console.log(`Sending loan approval email to ${loan.borrowerDetails.email}`);
-	console.log(`Loan amount: $${loan.loanAmount}`);
-	console.log(`Processing fee: $${loan.loanDetails.processingFee}`);
-	console.log("Terms and conditions would be included in the email");
+	try {
+		// Create transporter
+		const transporter = nodemailer.createTransport({
+			service: "gmail",
+			auth: {
+				user: process.env.EMAIL_USER, // Your Gmail address
+				pass: process.env.EMAIL_PASSWORD, // Your Gmail App Password
+			},
+		});
 
-	// You would typically use a service like Nodemailer, SendGrid, etc.
-	// await emailService.sendLoanApprovalEmail(loan);
+		// Verify transporter connection
+		await transporter.verify();
+
+		// Build email content
+		const info = await transporter.sendMail({
+			from: `"Fincare CMS" <${process.env.EMAIL_FROM}>`,
+			to: loan.borrowerDetails.email,
+			subject: "Your Loan Application Has Been Approved",
+			html: `
+				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+					<h2 style="color: #333;">Congratulations, ${loan.borrowerDetails.fullName}!</h2>
+					<p>Your loan application has been <strong>approved</strong>.</p>
+					<p>Here are your loan details:</p>
+					<div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+						<p><strong>Amount:</strong> $${loan.loanAmount}</p>
+						<p><strong>Interest:</strong> $${loan.loanDetails.interestAmount}</p>
+						<p><strong>Processing fee:</strong> $${loan.loanDetails.processingFee}</p>
+						<p><strong>Total repayment:</strong> $${loan.loanDetails.totalLoanAmount}</p>
+						<p><strong>Monthly Installment:</strong> $${loan.loanDetails.monthlyInstallment.toFixed(
+							2
+						)}</p>
+					</div>
+					<p style="color: #ff0000;">
+						Please review the attached terms and conditions carefully before proceeding with repayment.
+					</p>
+					<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+					<p style="color: #888; font-size: 12px;">
+						If you did not request this loan, please contact support immediately at support@fincare.com.
+					</p>
+				</div>
+			`,
+		});
+
+		console.log("Loan approval email sent: %s", info.messageId);
+		return true;
+	} catch (error) {
+		console.error("Error sending loan approval email:", error);
+		return false;
+	}
 }
