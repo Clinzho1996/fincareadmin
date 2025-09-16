@@ -83,6 +83,7 @@ export async function GET(request, { params }) {
 }
 
 // POST - Place a new bid on an auction
+// POST - Place a new bid on an auction
 export async function POST(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -93,10 +94,33 @@ export async function POST(request, { params }) {
 			);
 		}
 
-		// Check if userId exists in authResult
-		if (!authResult.userId) {
+		// Extract userId from the token directly since authResult doesn't contain it
+		const authHeader = request.headers.get("authorization");
+		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(
-				{ error: "User authentication failed" },
+				{ error: "Authorization header missing or invalid" },
+				{ status: 401 }
+			);
+		}
+
+		const token = authHeader.replace("Bearer ", "");
+		let userId;
+
+		try {
+			// Decode the JWT token to get the userId
+			const payload = JSON.parse(
+				Buffer.from(token.split(".")[1], "base64").toString()
+			);
+			userId = payload.userId;
+			console.log("Token successfully decoded, userId:", userId);
+		} catch (e) {
+			console.error("Failed to decode token:", e);
+			return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+		}
+
+		if (!userId) {
+			return NextResponse.json(
+				{ error: "User authentication failed - no user ID found in token" },
 				{ status: 401 }
 			);
 		}
@@ -131,9 +155,17 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
+		// Check if auction has a userId and it's valid
+		if (!auction.userId || !ObjectId.isValid(auction.userId)) {
+			return NextResponse.json(
+				{ error: "Invalid auction owner information" },
+				{ status: 400 }
+			);
+		}
+
 		// Convert both IDs to string for safe comparison
 		const auctionUserIdStr = auction.userId.toString();
-		const authUserIdStr = authResult.userId.toString();
+		const authUserIdStr = userId.toString();
 
 		// Cannot bid on your own auction
 		if (auctionUserIdStr === authUserIdStr) {
@@ -215,7 +247,7 @@ export async function POST(request, { params }) {
 		// Check if user has sufficient funds
 		const user = await db
 			.collection("users")
-			.findOne({ _id: new ObjectId(authResult.userId) });
+			.findOne({ _id: new ObjectId(userId) });
 
 		if (!user || user.savingsBalance < finalAmount) {
 			return NextResponse.json(
@@ -228,7 +260,7 @@ export async function POST(request, { params }) {
 		await db
 			.collection("users")
 			.updateOne(
-				{ _id: new ObjectId(authResult.userId) },
+				{ _id: new ObjectId(userId) },
 				{ $inc: { savingsBalance: -finalAmount } }
 			);
 
@@ -261,7 +293,7 @@ export async function POST(request, { params }) {
 		// Create the new bid with bid type and percentage if applicable
 		const newBid = {
 			auctionId: new ObjectId(id),
-			userId: new ObjectId(authResult.userId),
+			userId: new ObjectId(userId),
 			amount: finalAmount,
 			bidType: bidType,
 			...(bidType === "percentage" && { percentage: percentage }),
