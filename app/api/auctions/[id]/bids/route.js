@@ -83,7 +83,6 @@ export async function GET(request, { params }) {
 }
 
 // POST - Place a new bid on an auction
-// POST - Place a new bid on an auction
 export async function POST(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -155,7 +154,15 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
-		// Convert both IDs to string for safe comparison
+		// Check if auction has a userId and it's valid - FIXED: Added proper null check
+		if (!auction.userId) {
+			return NextResponse.json(
+				{ error: "Invalid auction owner information" },
+				{ status: 400 }
+			);
+		}
+
+		// Convert both IDs to string for safe comparison - FIXED: Added proper toString checks
 		const auctionUserIdStr = auction.userId.toString();
 		const authUserIdStr = userId.toString();
 
@@ -220,17 +227,21 @@ export async function POST(request, { params }) {
 		if (finalAmount < auction.reservePrice) {
 			return NextResponse.json(
 				{
-					error: `Bid must meet or exceed reserve price of ₦${auction.reservePrice.toLocaleString()}`,
+					error: `Bid must meet or exceed reserve price of ₦${
+						auction.reservePrice?.toLocaleString() || "0"
+					}`,
 				},
 				{ status: 400 }
 			);
 		}
 
 		// Check if bid is higher than current bid
-		if (finalAmount <= auction.currentBid) {
+		if (finalAmount <= (auction.currentBid || 0)) {
 			return NextResponse.json(
 				{
-					error: `Bid must be higher than current bid of ₦${auction.currentBid.toLocaleString()}`,
+					error: `Bid must be higher than current bid of ₦${(
+						auction.currentBid || 0
+					).toLocaleString()}`,
 				},
 				{ status: 400 }
 			);
@@ -241,7 +252,7 @@ export async function POST(request, { params }) {
 			.collection("users")
 			.findOne({ _id: new ObjectId(userId) });
 
-		if (!user || user.savingsBalance < finalAmount) {
+		if (!user || (user.savingsBalance || 0) < finalAmount) {
 			return NextResponse.json(
 				{ error: "Insufficient funds to place bid" },
 				{ status: 400 }
@@ -257,14 +268,14 @@ export async function POST(request, { params }) {
 			);
 
 		// If there was a previous highest bid, refund that user
-		if (auction.currentBid > 0) {
+		if ((auction.currentBid || 0) > 0) {
 			const previousBid = await db.collection("bids").findOne({
 				auctionId: new ObjectId(id),
 				amount: auction.currentBid,
 				status: "leading",
 			});
 
-			if (previousBid) {
+			if (previousBid && previousBid.userId) {
 				await db
 					.collection("users")
 					.updateOne(
@@ -308,7 +319,7 @@ export async function POST(request, { params }) {
 		);
 
 		// If this is the first bid, notify the auction owner
-		if (auction.currentBid === 0) {
+		if ((auction.currentBid || 0) === 0) {
 			const auctionOwner = await db
 				.collection("users")
 				.findOne({ _id: auction.userId });
