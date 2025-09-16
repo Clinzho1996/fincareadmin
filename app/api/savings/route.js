@@ -107,6 +107,7 @@ export async function POST(request) {
 			liquidateLoans: liquidateLoans || false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
+			status: "pending",
 		};
 
 		const result = await db.collection("savings").insertOne(newSaving);
