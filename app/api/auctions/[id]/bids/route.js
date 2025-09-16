@@ -155,14 +155,6 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
-		// Check if auction has a userId and it's valid
-		if (!auction.userId || !ObjectId.isValid(auction.userId)) {
-			return NextResponse.json(
-				{ error: "Invalid auction owner information" },
-				{ status: 400 }
-			);
-		}
-
 		// Convert both IDs to string for safe comparison
 		const auctionUserIdStr = auction.userId.toString();
 		const authUserIdStr = userId.toString();
