@@ -124,14 +124,6 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
-		// Check if auction has a userId and it's valid
-		if (!auction.userId || !ObjectId.isValid(auction.userId)) {
-			return NextResponse.json(
-				{ error: "Invalid auction owner information" },
-				{ status: 400 }
-			);
-		}
-
 		// Cannot bid on your own auction
 		if (auction.userId.toString() === authResult.userId.toString()) {
 			return NextResponse.json(
