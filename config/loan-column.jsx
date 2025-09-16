@@ -382,6 +382,7 @@ const AdminLoansDashboard = () => {
 		<div className="mx-auto px-4 py-8 mt-4 w-full">
 			{/* Analytics Dashboard */}
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+				{/* Total Loans */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Total Loans</h3>
 					<p className="text-2xl font-bold mt-1">
@@ -390,31 +391,35 @@ const AdminLoansDashboard = () => {
 					<p className="text-xs text-gray-500 mt-1">Last 30 days</p>
 				</div>
 
+				{/* Pending Review */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Pending Review</h3>
 					<p className="text-2xl font-bold mt-1">
-						{analytics
-							? analytics.loans.find((l) => l._id?.status === "pending")
-									?.count || 0
-							: "—"}
+						{analytics ? analytics.summary.pendingCount : "—"}
 					</p>
 					<p className="text-xs text-gray-500 mt-1">Requires action</p>
 				</div>
 
+				{/* Total Loan Value */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">
 						Total Loan Value
 					</h3>
 					<p className="text-2xl font-bold mt-1">
-						{analytics ? formatCurrency(analytics.summary.totalAmount) : "—"}
+						{analytics
+							? formatCurrency(analytics.summary.totalLoanAmount)
+							: "—"}
 					</p>
 					<p className="text-xs text-gray-500 mt-1">All time</p>
 				</div>
 
+				{/* Pending Fees */}
 				<div className="bg-white p-4 rounded-lg shadow border">
 					<h3 className="text-sm font-medium text-gray-600">Pending Fees</h3>
 					<p className="text-2xl font-bold mt-1">
-						{analytics ? analytics.summary.pendingFees || 0 : "—"}
+						{analytics
+							? formatCurrency(analytics.summary.pendingProcessingFees)
+							: "—"}
 					</p>
 					<p className="text-xs text-gray-500 mt-1">Unpaid processing fees</p>
 				</div>

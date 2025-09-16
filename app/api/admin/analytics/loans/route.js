@@ -21,13 +21,7 @@ export async function GET(request) {
 		const { db } = await connectToDatabase();
 
 		// Calculate date range based on period
-		const dateRanges = {
-			"7d": 7,
-			"30d": 30,
-			"90d": 90,
-			"1y": 365,
-		};
-
+		const dateRanges = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
 		const days = dateRanges[period] || 30;
 		const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -36,9 +30,7 @@ export async function GET(request) {
 			.collection("loans")
 			.aggregate([
 				{
-					$match: {
-						createdAt: { $gte: startDate },
-					},
+					$match: { createdAt: { $gte: startDate } },
 				},
 				{
 					$group: {
@@ -48,36 +40,47 @@ export async function GET(request) {
 							year: { $year: "$createdAt" },
 						},
 						count: { $sum: 1 },
-						totalPrincipal: { $sum: "$loanAmount" },
-						// Calculate interest for each loan (handle both old and new structures)
+						totalPrincipal: {
+							$sum: { $toDouble: { $ifNull: ["$loanAmount", 0] } },
+						},
 						totalInterest: {
 							$sum: {
 								$cond: {
-									if: { $gt: ["$loanDetails.interestAmount", 0] },
-									then: "$loanDetails.interestAmount",
+									if: {
+										$gt: [{ $ifNull: ["$loanDetails.interestAmount", 0] }, 0],
+									},
+									then: { $toDouble: "$loanDetails.interestAmount" },
 									else: {
 										$multiply: [
-											"$loanAmount",
+											{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
 											LOAN_INTEREST_RATE,
-											{ $divide: ["$duration", 12] },
+											{
+												$divide: [
+													{ $toDouble: { $ifNull: ["$duration", 0] } },
+													12,
+												],
+											},
 										],
 									},
 								},
 							},
 						},
-						// Calculate processing fees for each loan
 						totalProcessingFees: {
 							$sum: {
 								$cond: {
-									if: { $gt: ["$loanDetails.processingFee", 0] },
-									then: "$loanDetails.processingFee",
+									if: {
+										$gt: [{ $ifNull: ["$loanDetails.processingFee", 0] }, 0],
+									},
+									then: { $toDouble: "$loanDetails.processingFee" },
 									else: {
-										$multiply: ["$loanAmount", LOAN_PROCESSING_FEE_RATE],
+										$multiply: [
+											{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
+											LOAN_PROCESSING_FEE_RATE,
+										],
 									},
 								},
 							},
 						},
-						// Calculate pending processing fees
 						pendingProcessingFees: {
 							$sum: {
 								$cond: {
@@ -89,10 +92,18 @@ export async function GET(request) {
 									},
 									then: {
 										$cond: {
-											if: { $gt: ["$loanDetails.processingFee", 0] },
-											then: "$loanDetails.processingFee",
+											if: {
+												$gt: [
+													{ $ifNull: ["$loanDetails.processingFee", 0] },
+													0,
+												],
+											},
+											then: { $toDouble: "$loanDetails.processingFee" },
 											else: {
-												$multiply: ["$loanAmount", LOAN_PROCESSING_FEE_RATE],
+												$multiply: [
+													{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
+													LOAN_PROCESSING_FEE_RATE,
+												],
 											},
 										},
 									},
@@ -100,7 +111,6 @@ export async function GET(request) {
 								},
 							},
 						},
-						// Count loans with unpaid processing fees
 						unpaidFeeCount: {
 							$sum: {
 								$cond: {
@@ -115,20 +125,26 @@ export async function GET(request) {
 								},
 							},
 						},
-						// Calculate total loan amount (principal + interest)
 						totalLoanAmount: {
 							$sum: {
 								$cond: {
-									if: { $gt: ["$loanDetails.totalLoanAmount", 0] },
-									then: "$loanDetails.totalLoanAmount",
+									if: {
+										$gt: [{ $ifNull: ["$loanDetails.totalLoanAmount", 0] }, 0],
+									},
+									then: { $toDouble: "$loanDetails.totalLoanAmount" },
 									else: {
 										$add: [
-											"$loanAmount",
+											{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
 											{
 												$multiply: [
-													"$loanAmount",
+													{ $toDouble: { $ifNull: ["$loanAmount", 0] } },
 													LOAN_INTEREST_RATE,
-													{ $divide: ["$duration", 12] },
+													{
+														$divide: [
+															{ $toDouble: { $ifNull: ["$duration", 0] } },
+															12,
+														],
+													},
 												],
 											},
 										],
@@ -136,45 +152,38 @@ export async function GET(request) {
 								},
 							},
 						},
-						// Calculate average loan metrics
-						avgLoanAmount: { $avg: "$loanAmount" },
-						avgDuration: { $avg: "$duration" },
+						avgLoanAmount: {
+							$avg: { $toDouble: { $ifNull: ["$loanAmount", 0] } },
+						},
+						avgDuration: { $avg: { $toDouble: { $ifNull: ["$duration", 0] } } },
 					},
 				},
-				{
-					$sort: { "_id.year": 1, "_id.month": 1 },
-				},
+				{ $sort: { "_id.year": 1, "_id.month": 1 } },
 			])
 			.toArray();
 
-		// Additional analytics for status breakdown
+		// Status breakdown
 		const statusBreakdown = await db
 			.collection("loans")
 			.aggregate([
-				{
-					$match: {
-						createdAt: { $gte: startDate },
-					},
-				},
+				{ $match: { createdAt: { $gte: startDate } } },
 				{
 					$group: {
 						_id: "$status",
 						count: { $sum: 1 },
-						totalAmount: { $sum: "$loanAmount" },
+						totalAmount: {
+							$sum: { $toDouble: { $ifNull: ["$loanAmount", 0] } },
+						},
 					},
 				},
 			])
 			.toArray();
 
-		// Monthly trend analysis
+		// Monthly trend
 		const monthlyTrend = await db
 			.collection("loans")
 			.aggregate([
-				{
-					$match: {
-						createdAt: { $gte: startDate },
-					},
-				},
+				{ $match: { createdAt: { $gte: startDate } } },
 				{
 					$group: {
 						_id: {
@@ -182,7 +191,9 @@ export async function GET(request) {
 							year: { $year: "$createdAt" },
 						},
 						loanCount: { $sum: 1 },
-						totalPrincipal: { $sum: "$loanAmount" },
+						totalPrincipal: {
+							$sum: { $toDouble: { $ifNull: ["$loanAmount", 0] } },
+						},
 						totalApproved: {
 							$sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] },
 						},
@@ -191,54 +202,49 @@ export async function GET(request) {
 						},
 					},
 				},
-				{
-					$sort: { "_id.year": 1, "_id.month": 1 },
-				},
+				{ $sort: { "_id.year": 1, "_id.month": 1 } },
 			])
 			.toArray();
 
-		// Calculate summary statistics
+		// Summary
 		const summary = {
-			total: loanAnalytics.reduce((sum, item) => sum + item.count, 0),
+			total: loanAnalytics.reduce((sum, i) => sum + i.count, 0),
 			totalPrincipal: loanAnalytics.reduce(
-				(sum, item) => sum + item.totalPrincipal,
+				(sum, i) => sum + i.totalPrincipal,
 				0
 			),
-			totalInterest: loanAnalytics.reduce(
-				(sum, item) => sum + item.totalInterest,
-				0
-			),
+			totalInterest: loanAnalytics.reduce((sum, i) => sum + i.totalInterest, 0),
 			totalProcessingFees: loanAnalytics.reduce(
-				(sum, item) => sum + item.totalProcessingFees,
+				(sum, i) => sum + i.totalProcessingFees,
 				0
 			),
 			pendingProcessingFees: loanAnalytics.reduce(
-				(sum, item) => sum + item.pendingProcessingFees,
+				(sum, i) => sum + i.pendingProcessingFees,
 				0
 			),
 			totalLoanAmount: loanAnalytics.reduce(
-				(sum, item) => sum + item.totalLoanAmount,
+				(sum, i) => sum + i.totalLoanAmount,
 				0
 			),
 			unpaidFeeCount: loanAnalytics.reduce(
-				(sum, item) => sum + item.unpaidFeeCount,
+				(sum, i) => sum + i.unpaidFeeCount,
 				0
 			),
 			avgLoanAmount:
-				loanAnalytics.reduce((sum, item) => sum + item.avgLoanAmount, 0) /
-				loanAnalytics.length,
+				loanAnalytics.reduce((sum, i) => sum + i.avgLoanAmount, 0) /
+				(loanAnalytics.length || 1),
 			avgDuration:
-				loanAnalytics.reduce((sum, item) => sum + item.avgDuration, 0) /
-				loanAnalytics.length,
+				loanAnalytics.reduce((sum, i) => sum + i.avgDuration, 0) /
+				(loanAnalytics.length || 1),
 		};
 
-		// Calculate approval rate
+		// Approval rate
 		const approvedCount =
-			statusBreakdown.find((item) => item._id === "approved")?.count || 0;
+			statusBreakdown.find((i) => i._id === "approved")?.count || 0;
 		const pendingCount =
-			statusBreakdown.find((item) => item._id === "pending")?.count || 0;
+			statusBreakdown.find((i) => i._id === "pending")?.count || 0;
 		const rejectedCount =
-			statusBreakdown.find((item) => item._id === "rejected")?.count || 0;
+			statusBreakdown.find((i) => i._id === "rejected")?.count || 0;
 		const totalProcessed = approvedCount + rejectedCount;
 
 		summary.approvalRate =
