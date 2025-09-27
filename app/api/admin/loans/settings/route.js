@@ -84,6 +84,8 @@ export async function PATCH(request) {
 				{ upsert: true }
 			);
 
+		console.log("Upsert result:", result);
+
 		// Log the change
 		await db.collection("settings_history").insertOne({
 			type: "loan_settings_update",
