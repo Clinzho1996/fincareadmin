@@ -112,6 +112,8 @@ export default function ExtraSavingsAnalyticsPage() {
 				setTopSavers(data.data.topSavers);
 				setStatistics(data.data.statistics);
 			}
+
+			console.log("Top Savers API response:", data);
 		} catch (error) {
 			console.error("Error fetching top savers:", error);
 		} finally {
@@ -406,9 +408,9 @@ export default function ExtraSavingsAnalyticsPage() {
 												<Badge
 													variant="outline"
 													className={getMembershipBadge(
-														saver.userDetails?.membershipLevel
+														saver.userDetails?.membershipStatus
 													)}>
-													{saver.userDetails?.membershipLevel}
+													{saver.userDetails?.membershipStatus}
 												</Badge>
 											</TableCell>
 											<TableCell className="font-semibold">
