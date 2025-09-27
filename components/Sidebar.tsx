@@ -1,6 +1,6 @@
 import { sidebarLinks } from "@/constants";
 import { cn } from "@/lib/utils";
-import { IconLogout } from "@tabler/icons-react";
+import { IconLogout, IconSettings } from "@tabler/icons-react";
 import { signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -123,6 +123,28 @@ const Sidebar = () => {
 
 			{/* Settings + User Section */}
 			<div className="flex flex-col gap-1 mb-4">
+				<div className="flex flex-col mx-0 gap-2  py-2">
+					<Link
+						href="/system-settings"
+						className={cn(
+							"flex items-center justify-center sm:justify-start rounded-[8px] mx-auto sm:mx-4 my-0 border-[1px] border-[#FFFFFF0A] cursor-pointer p-2",
+							{
+								"shadow-inner shadow-[#C3FF9D38] border-[1px] border-[#fff]":
+									isSettingsActive,
+							}
+						)}>
+						{!isCollapsed ? (
+							<div className="flex gap-2 items-center justify-start rounded-[8px] my-0">
+								<IconSettings color="#fff" />
+								<p className="text-sm font-normal font-inter  text-white">
+									Settings
+								</p>
+							</div>
+						) : (
+							<IconLogout color="#fff" />
+						)}
+					</Link>
+				</div>
 				<div className="flex flex-col mx-0 gap-2 border-b-[1px] border-[#E2E4E9] py-2">
 					<div
 						onClick={handleLogout}

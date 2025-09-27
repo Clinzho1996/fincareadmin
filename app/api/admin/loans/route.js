@@ -69,15 +69,17 @@ export async function GET(request) {
 			.limit(limit)
 			.toArray();
 
-		const enhancedLoans = loans.map((loan) => {
-			if (!loan.loanDetails) {
-				return {
-					...loan,
-					loanDetails: calculateLoanDetails(loan),
-				};
-			}
-			return loan;
-		});
+		const enhancedLoans = await Promise.all(
+			loans.map(async (loan) => {
+				if (!loan.loanDetails) {
+					return {
+						...loan,
+						loanDetails: await calculateLoanDetails(db, loan),
+					};
+				}
+				return loan;
+			})
+		);
 
 		return NextResponse.json({
 			status: "success",
@@ -162,9 +164,15 @@ export async function PATCH(request) {
 	}
 }
 
-const calculateLoanDetails = (loan) => {
-	const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
-	const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
+const calculateLoanDetails = async (db, loan) => {
+	const settings = await db
+		.collection("settings")
+		.findOne({ type: "loan_settings" });
+
+	const LOAN_INTEREST_RATE = settings ? settings.interestRate / 100 : 0.1; // Use dynamic rate or 10% default
+	const LOAN_PROCESSING_FEE_RATE = settings
+		? settings.processingFeeRate / 100
+		: 0.01; // Use dynamic rate or 1% default
 
 	const principalAmount = Number(loan.loanAmount);
 	const duration = Number(loan.duration);
@@ -196,8 +204,21 @@ async function handleStatusUpdate(db, loan, status) {
 		.collection("loans")
 		.updateOne({ _id: loan._id }, { $set: { status, updatedAt: new Date() } });
 
-	// If status changed to approved, update user's total loans and send email
+	// If status changed to approved, calculate loan details with current rates
 	if (status === "approved" && loan.status !== "approved") {
+		const loanDetails = await calculateLoanDetails(db, loan);
+
+		await db.collection("loans").updateOne(
+			{ _id: loan._id },
+			{
+				$set: {
+					status,
+					loanDetails,
+					updatedAt: new Date(),
+				},
+			}
+		);
+
 		await db
 			.collection("users")
 			.updateOne(
@@ -205,17 +226,14 @@ async function handleStatusUpdate(db, loan, status) {
 				{ $inc: { totalLoans: Number(loan.loanAmount) } }
 			);
 
-		// Send approval email with terms and conditions
 		await sendLoanApprovalEmail(loan);
-	}
-
-	// If status changed from approved to something else, subtract from total loans
-	if (loan.status === "approved" && status !== "approved") {
+	} else {
+		// For other status updates
 		await db
-			.collection("users")
+			.collection("loans")
 			.updateOne(
-				{ _id: new ObjectId(loan.userId) },
-				{ $inc: { totalLoans: -Number(loan.loanAmount) } }
+				{ _id: loan._id },
+				{ $set: { status, updatedAt: new Date() } }
 			);
 	}
 
