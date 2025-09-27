@@ -44,12 +44,14 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
 interface TopSaver {
+	_id: string;
 	userId: string;
 	totalSavingsAmount: number;
 	savingsCount: number;
 	lastSavingsDate: string;
 	firstSavingsDate: string;
-	userDetails: {
+	savingsIds: string[];
+	userDetails?: {
 		firstName: string;
 		lastName: string;
 		otherName: string;
@@ -107,15 +109,42 @@ export default function ExtraSavingsAnalyticsPage() {
 				}
 			);
 
-			const data = await res.json();
-			if (data.status === "success") {
-				setTopSavers(data.data.topSavers);
-				setStatistics(data.data.statistics);
+			if (!res.ok) {
+				throw new Error(`HTTP error! status: ${res.status}`);
 			}
 
-			console.log("Top Savers API response:", data);
+			const data = await res.json();
+			console.log("Full API response:", data);
+
+			if (data.status === "success") {
+				const savers = data.data?.topSavers || [];
+				const stats = data.data?.statistics || null;
+
+				console.log("Number of savers returned:", savers.length);
+				console.log("Savers data:", savers);
+
+				// Check which savers have userDetails
+				savers.forEach((saver: TopSaver, index: number) => {
+					console.log(
+						`Saver ${index + 1} has userDetails:`,
+						!!saver.userDetails
+					);
+					if (saver.userDetails) {
+						console.log(`Saver ${index + 1} userDetails:`, saver.userDetails);
+					}
+				});
+
+				setTopSavers(savers);
+				setStatistics(stats);
+			} else {
+				console.error("API returned error status:", data);
+				setTopSavers([]);
+				setStatistics(null);
+			}
 		} catch (error) {
 			console.error("Error fetching top savers:", error);
+			setTopSavers([]);
+			setStatistics(null);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);
@@ -156,24 +185,38 @@ export default function ExtraSavingsAnalyticsPage() {
 			silver: "bg-gray-100 text-gray-800",
 			gold: "bg-yellow-100 text-yellow-800",
 			platinum: "bg-blue-100 text-blue-800",
+			approved: "bg-green-100 text-green-800",
+			pending: "bg-yellow-100 text-yellow-800",
+			suspended: "bg-red-100 text-red-800",
 		};
 
 		return variants[level?.toLowerCase()] || "bg-gray-100 text-gray-800";
 	};
 
-	const filteredSavers = topSavers.filter(
-		(saver) =>
-			saver.userDetails?.firstName
-				?.toLowerCase()
-				.includes(searchTerm.toLowerCase()) ||
-			saver.userDetails?.lastName
-				?.toLowerCase()
-				.includes(searchTerm.toLowerCase()) ||
-			saver.userDetails?.email
-				?.toLowerCase()
-				.includes(searchTerm.toLowerCase()) ||
-			saver.userDetails?.phone?.includes(searchTerm)
-	);
+	// FIXED: Filter savers - include those without userDetails if search is empty
+	const filteredSavers = topSavers.filter((saver) => {
+		// If no search term, include all savers (even those without userDetails)
+		if (!searchTerm.trim()) {
+			return saver.totalSavingsAmount > 0;
+		}
+
+		// If search term exists but saver has no userDetails, exclude them
+		if (!saver.userDetails) {
+			return false;
+		}
+
+		// If search term exists and saver has userDetails, apply search filter
+		const searchLower = searchTerm.toLowerCase();
+		return (
+			saver.userDetails.firstName?.toLowerCase().includes(searchLower) ||
+			saver.userDetails.lastName?.toLowerCase().includes(searchLower) ||
+			saver.userDetails.email?.toLowerCase().includes(searchLower) ||
+			saver.userDetails.phone?.includes(searchTerm)
+		);
+	});
+
+	// Always display all filtered savers
+	const displaySavers = filteredSavers;
 
 	if (loading) {
 		return (
@@ -191,6 +234,44 @@ export default function ExtraSavingsAnalyticsPage() {
 			<HeaderBox title="Extra Savings Analytics" />
 
 			<div className="p-6 space-y-6">
+				{/* Debug Info - Keep this to see what's happening */}
+				<Card className="bg-blue-50 border-blue-200">
+					<CardHeader>
+						<CardTitle className="text-blue-800 text-sm">Data Debug</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+							<div>
+								<strong>Total Savers:</strong> {topSavers.length}
+							</div>
+							<div>
+								<strong>With UserDetails:</strong>{" "}
+								{topSavers.filter((s) => s.userDetails).length}
+							</div>
+							<div>
+								<strong>Display Savers:</strong> {displaySavers.length}
+							</div>
+							<div>
+								<strong>Search Term:</strong> "{searchTerm}"
+							</div>
+						</div>
+						{topSavers.length > 0 && (
+							<div className="mt-2 text-xs space-y-1">
+								<strong>Saver Details:</strong>
+								{topSavers.map((saver, index) => (
+									<div key={saver._id}>
+										#{index + 1}:{" "}
+										{saver.userDetails
+											? `${saver.userDetails.firstName} ${saver.userDetails.lastName}`
+											: "No userDetails"}{" "}
+										- {formatCurrency(saver.totalSavingsAmount)}
+									</div>
+								))}
+							</div>
+						)}
+					</CardContent>
+				</Card>
+
 				{/* Filters Card */}
 				<Card>
 					<CardHeader>
@@ -335,8 +416,8 @@ export default function ExtraSavingsAnalyticsPage() {
 								Top Savers Ranking
 							</div>
 							<Badge variant="secondary">
-								{filteredSavers.length}{" "}
-								{filteredSavers.length === 1 ? "Saver" : "Savers"}
+								{displaySavers.length}{" "}
+								{displaySavers.length === 1 ? "Saver" : "Savers"}
 							</Badge>
 						</CardTitle>
 						<CardDescription>
@@ -345,90 +426,112 @@ export default function ExtraSavingsAnalyticsPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						{filteredSavers.length === 0 ? (
+						{displaySavers.length === 0 ? (
 							<div className="text-center py-8">
 								<Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
 								<p className="text-gray-500">
-									No savings data found for the selected period
+									{topSavers.length === 0
+										? "No savings data found for the selected period"
+										: "No savers match your search criteria"}
 								</p>
 							</div>
 						) : (
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Rank</TableHead>
-										<TableHead>Member</TableHead>
-										<TableHead>Contact</TableHead>
-										<TableHead>Membership</TableHead>
-										<TableHead>Total Savings</TableHead>
-										<TableHead>Transactions</TableHead>
-										<TableHead>Last Activity</TableHead>
-										<TableHead>Current Balance</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredSavers.map((saver, index) => (
-										<TableRow
-											key={saver.userId}
-											className={index < 3 ? "bg-muted/50" : ""}>
-											<TableCell>
-												<div className="flex items-center gap-2">
-													{index === 0 && (
-														<Award className="h-4 w-4 text-yellow-500" />
-													)}
-													{index === 1 && (
-														<Award className="h-4 w-4 text-gray-400" />
-													)}
-													{index === 2 && (
-														<Award className="h-4 w-4 text-amber-600" />
-													)}
-													<span className="font-medium">#{index + 1}</span>
-												</div>
-											</TableCell>
-											<TableCell>
-												<div>
-													<div className="font-medium">
-														{saver.userDetails?.firstName}{" "}
-														{saver.userDetails?.lastName}
-													</div>
-													<div className="text-sm text-gray-500">
-														{saver.userDetails?.otherName}
-													</div>
-												</div>
-											</TableCell>
-											<TableCell>
-												<div className="text-sm">
-													<div>{saver.userDetails?.email}</div>
-													<div className="text-gray-500">
-														{saver.userDetails?.phone}
-													</div>
-												</div>
-											</TableCell>
-											<TableCell>
-												<Badge
-													variant="outline"
-													className={getMembershipBadge(
-														saver.userDetails?.membershipStatus
-													)}>
-													{saver.userDetails?.membershipStatus}
-												</Badge>
-											</TableCell>
-											<TableCell className="font-semibold">
-												{formatCurrency(saver.totalSavingsAmount)}
-											</TableCell>
-											<TableCell>
-												<Badge variant="secondary">{saver.savingsCount}</Badge>
-											</TableCell>
-											<TableCell className="text-sm text-gray-500">
-												{formatDate(saver.lastSavingsDate)}
-											</TableCell>
-											<TableCell className="font-medium">
-												{formatCurrency(saver.userDetails?.savingsBalance || 0)}
-											</TableCell>
+							<>
+								<div className="mb-4 text-sm text-gray-600">
+									Showing {displaySavers.length} of {topSavers.length} total
+									savers
+									{searchTerm && ` (filtered by search)`}
+								</div>
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Rank</TableHead>
+											<TableHead>Member</TableHead>
+											<TableHead>Contact</TableHead>
+											<TableHead>Membership</TableHead>
+											<TableHead>Total Savings</TableHead>
+											<TableHead>Transactions</TableHead>
+											<TableHead>Last Activity</TableHead>
+											<TableHead>Current Balance</TableHead>
 										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+									</TableHeader>
+									<TableBody>
+										{displaySavers.map((saver, index) => (
+											<TableRow
+												key={saver._id || saver.userId}
+												className={index < 3 ? "bg-muted/50" : ""}>
+												<TableCell>
+													<div className="flex items-center gap-2">
+														{index === 0 && (
+															<Award className="h-4 w-4 text-yellow-500" />
+														)}
+														{index === 1 && (
+															<Award className="h-4 w-4 text-gray-400" />
+														)}
+														{index === 2 && (
+															<Award className="h-4 w-4 text-amber-600" />
+														)}
+														<span className="font-medium">#{index + 1}</span>
+													</div>
+												</TableCell>
+												<TableCell>
+													<div>
+														<div className="font-medium">
+															{saver.userDetails ? (
+																<>
+																	{saver.userDetails.firstName}{" "}
+																	{saver.userDetails.lastName}
+																</>
+															) : (
+																<span className="text-gray-500">
+																	User #{index + 1}
+																</span>
+															)}
+														</div>
+														<div className="text-sm text-gray-500">
+															{saver.userDetails?.otherName ||
+																"Details unavailable"}
+														</div>
+													</div>
+												</TableCell>
+												<TableCell>
+													<div className="text-sm">
+														<div>{saver.userDetails?.email || "N/A"}</div>
+														<div className="text-gray-500">
+															{saver.userDetails?.phone || "N/A"}
+														</div>
+													</div>
+												</TableCell>
+												<TableCell>
+													<Badge
+														variant="outline"
+														className={getMembershipBadge(
+															saver.userDetails?.membershipStatus || "unknown"
+														)}>
+														{saver.userDetails?.membershipStatus || "Unknown"}
+													</Badge>
+												</TableCell>
+												<TableCell className="font-semibold">
+													{formatCurrency(saver.totalSavingsAmount)}
+												</TableCell>
+												<TableCell>
+													<Badge variant="secondary">
+														{saver.savingsCount}
+													</Badge>
+												</TableCell>
+												<TableCell className="text-sm text-gray-500">
+													{formatDate(saver.lastSavingsDate)}
+												</TableCell>
+												<TableCell className="font-medium">
+													{formatCurrency(
+														saver.userDetails?.savingsBalance || 0
+													)}
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</>
 						)}
 					</CardContent>
 				</Card>
@@ -465,7 +568,7 @@ export default function ExtraSavingsAnalyticsPage() {
 									<li className="flex justify-between">
 										<span>Average per saver:</span>
 										<span className="font-medium">
-											{statistics
+											{statistics && statistics.uniqueSaversCount > 0
 												? formatCurrency(
 														statistics.totalSavingsVolume /
 															statistics.uniqueSaversCount
