@@ -1,4 +1,4 @@
-// app/api/admin/analytics/top-savers/route.js
+// app/api/admin/analytics/top-savers/route.js - FIXED VERSION
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { getToken } from "next-auth/jwt";
@@ -13,7 +13,7 @@ export async function GET(request) {
 		}
 
 		const { searchParams } = new URL(request.url);
-		const period = searchParams.get("period") || "month"; // day, week, month, year, all
+		const period = searchParams.get("period") || "month";
 		const limit = parseInt(searchParams.get("limit")) || 20;
 		const page = parseInt(searchParams.get("page")) || 1;
 		const skip = (page - 1) * limit;
@@ -24,7 +24,7 @@ export async function GET(request) {
 		const dateRange = getDateRange(period);
 		console.log("Date range for period", period, ":", dateRange);
 
-		// Aggregate top savers based on savings transactions
+		// FIXED: Simplified aggregation pipeline
 		const pipeline = [
 			// Match savings within the date range
 			{
@@ -65,12 +65,24 @@ export async function GET(request) {
 					savingsIds: { $push: "$_id" },
 				},
 			},
-			// Lookup user details
+			// Lookup user details - handle both string and ObjectId userIDs
 			{
 				$lookup: {
 					from: "users",
-					localField: "_id",
-					foreignField: "_id",
+					let: { userId: "$_id" },
+					pipeline: [
+						{
+							$match: {
+								$expr: {
+									$or: [
+										{ $eq: ["$_id", "$$userId"] }, // Direct match for ObjectId
+										{ $eq: [{ $toString: "$_id" }, "$$userId"] }, // String match
+										{ $eq: ["$_id", { $toObjectId: "$$userId" }] }, // Convert string to ObjectId
+									],
+								},
+							},
+						},
+					],
 					as: "userDetails",
 				},
 			},
@@ -81,7 +93,7 @@ export async function GET(request) {
 					preserveNullAndEmptyArrays: true,
 				},
 			},
-			// Project relevant fields
+			// Project relevant fields - use proper projection syntax
 			{
 				$project: {
 					userId: "$_id",
@@ -91,15 +103,21 @@ export async function GET(request) {
 					firstSavingsDate: 1,
 					savingsIds: 1,
 					userDetails: {
-						firstName: 1,
-						lastName: 1,
-						otherName: 1,
-						email: 1,
-						phone: 1,
-						savingsBalance: 1,
-						totalSavings: 1,
-						membershipLevel: 1,
-						membershipStatus: 1,
+						$cond: {
+							if: { $ne: ["$userDetails", null] },
+							then: {
+								firstName: "$userDetails.firstName",
+								lastName: "$userDetails.lastName",
+								otherName: "$userDetails.otherName",
+								email: "$userDetails.email",
+								phone: "$userDetails.phone",
+								savingsBalance: "$userDetails.savingsBalance",
+								totalSavings: "$userDetails.totalSavings",
+								membershipLevel: "$userDetails.membershipLevel",
+								membershipStatus: "$userDetails.membershipStatus",
+							},
+							else: null,
+						},
 					},
 				},
 			},
@@ -116,30 +134,43 @@ export async function GET(request) {
 			},
 		];
 
+		console.log("Executing aggregation pipeline...");
+		const topSavers = await db
+			.collection("savings")
+			.aggregate(pipeline)
+			.toArray();
+
+		console.log(`Found ${topSavers.length} savers`);
+		console.log("UserDetails status for each saver:");
+		topSavers.forEach((saver, index) => {
+			console.log(`Saver ${index + 1}:`, {
+				userId: saver.userId,
+				hasUserDetails: !!saver.userDetails,
+				userName: saver.userDetails
+					? `${saver.userDetails.firstName} ${saver.userDetails.lastName}`
+					: "No details",
+			});
+		});
+
 		// Get total count for pagination
-		const countPipeline = [
-			...pipeline.slice(0, 2), // Match and group stages only
-			{
-				$count: "totalCount",
-			},
-		];
+		const countMatch = {
+			status: "verified",
+			createdAt: dateRange
+				? { $gte: dateRange.start, $lte: dateRange.end }
+				: { $exists: true },
+			$or: [
+				{ amount: { $gt: 0 } },
+				{ currentBalance: { $gt: 0 } },
+				{ targetAmount: { $gt: 0 } },
+			],
+		};
 
-		const [topSavers, countResult] = await Promise.all([
-			db.collection("savings").aggregate(pipeline).toArray(),
-			db.collection("savings").aggregate(countPipeline).toArray(),
-		]);
-
-		const total = countResult.length > 0 ? countResult[0].totalCount : 0;
+		const total = await db.collection("savings").countDocuments(countMatch);
 
 		// Calculate overall statistics
 		const statsPipeline = [
 			{
-				$match: {
-					status: "verified",
-					createdAt: dateRange
-						? { $gte: dateRange.start, $lte: dateRange.end }
-						: { $exists: true },
-				},
+				$match: countMatch,
 			},
 			{
 				$group: {
@@ -160,7 +191,21 @@ export async function GET(request) {
 						},
 					},
 					totalTransactions: { $sum: 1 },
-					averageSavings: { $avg: "$amount" },
+					averageSavings: {
+						$avg: {
+							$cond: [
+								{ $gt: ["$amount", 0] },
+								"$amount",
+								{
+									$cond: [
+										{ $gt: ["$currentBalance", 0] },
+										"$currentBalance",
+										{ $ifNull: ["$targetAmount", 0] },
+									],
+								},
+							],
+						},
+					},
 					uniqueSavers: { $addToSet: "$userId" },
 				},
 			},
@@ -206,7 +251,10 @@ export async function GET(request) {
 	} catch (error) {
 		console.error("GET /api/admin/analytics/top-savers error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{
+				error: "Internal server error",
+				details: error.message,
+			},
 			{ status: 500 }
 		);
 	}
@@ -223,7 +271,7 @@ function getDateRange(period) {
 			break;
 		case "week":
 			start = new Date(now);
-			start.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+			start.setDate(now.getDate() - now.getDay());
 			start.setHours(0, 0, 0, 0);
 			end = new Date(start);
 			end.setDate(start.getDate() + 7);
@@ -238,13 +286,13 @@ function getDateRange(period) {
 			break;
 		case "all":
 		default:
-			return null; // No date range for "all"
+			return null;
 	}
 
 	return { start, end };
 }
 
-// Additional endpoint for savings trends
+// Alternative simpler version if the above still has issues
 export async function POST(request) {
 	try {
 		const token = await getToken({ req: request });
@@ -253,27 +301,31 @@ export async function POST(request) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 		}
 
-		const { period = "month", userId } = await request.json();
-
+		const { period = "month" } = await request.json();
 		const { db } = await connectToDatabase();
 
-		// Get savings trend data
-		const trendPipeline = [
-			{
-				$match: {
-					status: "verified",
-					...(userId && { userId: new ObjectId(userId) }),
-				},
-			},
+		const dateRange = getDateRange(period);
+
+		// SIMPLER APPROACH: Get savings first, then manually lookup users
+		const savingsMatch = {
+			status: "verified",
+			createdAt: dateRange
+				? { $gte: dateRange.start, $lte: dateRange.end }
+				: { $exists: true },
+			$or: [
+				{ amount: { $gt: 0 } },
+				{ currentBalance: { $gt: 0 } },
+				{ targetAmount: { $gt: 0 } },
+			],
+		};
+
+		// First, get grouped savings data
+		const savingsPipeline = [
+			{ $match: savingsMatch },
 			{
 				$group: {
-					_id: {
-						year: { $year: "$createdAt" },
-						month: { $month: "$createdAt" },
-						week: { $week: "$createdAt" },
-						day: { $dayOfMonth: "$createdAt" },
-					},
-					totalAmount: {
+					_id: "$userId",
+					totalSavingsAmount: {
 						$sum: {
 							$cond: [
 								{ $gt: ["$amount", 0] },
@@ -288,27 +340,65 @@ export async function POST(request) {
 							],
 						},
 					},
-					transactionCount: { $sum: 1 },
-					date: { $first: "$createdAt" },
+					savingsCount: { $sum: 1 },
+					lastSavingsDate: { $max: "$createdAt" },
+					firstSavingsDate: { $min: "$createdAt" },
 				},
 			},
-			{
-				$sort: { "_id.year": 1, "_id.month": 1, "_id.week": 1, "_id.day": 1 },
-			},
-			{
-				$limit: 30, // Last 30 data points
-			},
+			{ $sort: { totalSavingsAmount: -1 } },
+			{ $limit: 50 },
 		];
 
-		const trends = await db
+		const savingsData = await db
 			.collection("savings")
-			.aggregate(trendPipeline)
+			.aggregate(savingsPipeline)
 			.toArray();
+
+		// Then, manually lookup user details for each saver
+		const topSavers = await Promise.all(
+			savingsData.map(async (saver) => {
+				let userDetails = null;
+
+				try {
+					// Try to find user by converting userId to ObjectId if it's a string
+					const userId =
+						typeof saver._id === "string" ? new ObjectId(saver._id) : saver._id;
+
+					userDetails = await db.collection("users").findOne({ _id: userId });
+				} catch (error) {
+					console.log(
+						`Could not find user for userId: ${saver._id}`,
+						error.message
+					);
+				}
+
+				return {
+					userId: saver._id,
+					totalSavingsAmount: saver.totalSavingsAmount,
+					savingsCount: saver.savingsCount,
+					lastSavingsDate: saver.lastSavingsDate,
+					firstSavingsDate: saver.firstSavingsDate,
+					userDetails: userDetails
+						? {
+								firstName: userDetails.firstName,
+								lastName: userDetails.lastName,
+								otherName: userDetails.otherName,
+								email: userDetails.email,
+								phone: userDetails.phone,
+								savingsBalance: userDetails.savingsBalance,
+								totalSavings: userDetails.totalSavings,
+								membershipLevel: userDetails.membershipLevel,
+								membershipStatus: userDetails.membershipStatus,
+						  }
+						: null,
+				};
+			})
+		);
 
 		return NextResponse.json({
 			status: "success",
 			data: {
-				trends,
+				topSavers,
 				period,
 			},
 		});

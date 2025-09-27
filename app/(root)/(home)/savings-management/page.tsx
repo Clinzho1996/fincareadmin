@@ -234,44 +234,6 @@ export default function ExtraSavingsAnalyticsPage() {
 			<HeaderBox title="Extra Savings Analytics" />
 
 			<div className="p-6 space-y-6">
-				{/* Debug Info - Keep this to see what's happening */}
-				<Card className="bg-blue-50 border-blue-200">
-					<CardHeader>
-						<CardTitle className="text-blue-800 text-sm">Data Debug</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-							<div>
-								<strong>Total Savers:</strong> {topSavers.length}
-							</div>
-							<div>
-								<strong>With UserDetails:</strong>{" "}
-								{topSavers.filter((s) => s.userDetails).length}
-							</div>
-							<div>
-								<strong>Display Savers:</strong> {displaySavers.length}
-							</div>
-							<div>
-								<strong>Search Term:</strong> "{searchTerm}"
-							</div>
-						</div>
-						{topSavers.length > 0 && (
-							<div className="mt-2 text-xs space-y-1">
-								<strong>Saver Details:</strong>
-								{topSavers.map((saver, index) => (
-									<div key={saver._id}>
-										#{index + 1}:{" "}
-										{saver.userDetails
-											? `${saver.userDetails.firstName} ${saver.userDetails.lastName}`
-											: "No userDetails"}{" "}
-										- {formatCurrency(saver.totalSavingsAmount)}
-									</div>
-								))}
-							</div>
-						)}
-					</CardContent>
-				</Card>
-
 				{/* Filters Card */}
 				<Card>
 					<CardHeader>
