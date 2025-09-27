@@ -16,10 +16,8 @@ import {
 import {
 	Calendar,
 	CheckCircle,
-	DollarSign,
 	Eye,
 	Loader2,
-	Plus,
 	RefreshCw,
 	XCircle,
 } from "lucide-react";
@@ -79,12 +77,6 @@ export default function CustomerDetailsPage() {
 	const [savings, setSavings] = useState<Saving[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [savingsLoading, setSavingsLoading] = useState(false);
-	const [showAddSavings, setShowAddSavings] = useState(false);
-	const [newSavings, setNewSavings] = useState({
-		amount: "",
-		reason: "",
-		notes: "",
-	});
 	const [refreshing, setRefreshing] = useState(false);
 
 	useEffect(() => {
@@ -164,7 +156,7 @@ export default function CustomerDetailsPage() {
 
 			const data = await res.json();
 			if (data.status === "success") {
-				alert("Savings verified successfully");
+				alert("Savings verified successfully and added to user's account");
 				handleRefresh();
 			} else {
 				alert(data.error || "Failed to verify savings");
@@ -203,46 +195,6 @@ export default function CustomerDetailsPage() {
 		} catch (err) {
 			console.error("Error rejecting savings:", err);
 			alert("Failed to reject savings");
-		}
-	};
-
-	const handleAddSavings = async (e: React.FormEvent) => {
-		e.preventDefault();
-		if (!newSavings.amount || parseFloat(newSavings.amount) <= 0) {
-			alert("Please enter a valid amount");
-			return;
-		}
-
-		try {
-			const res = await fetch(`/api/admin/savings`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${accessToken}`,
-				},
-				body: JSON.stringify({
-					userId: id,
-					amount: parseFloat(newSavings.amount),
-					reason: newSavings.reason || "Manual deposit",
-					notes: newSavings.notes,
-				}),
-			});
-
-			const data = await res.json();
-			console.log("Add savings response:", data); // Debug log
-
-			if (data.status === "success") {
-				alert("Savings added successfully");
-				setNewSavings({ amount: "", reason: "", notes: "" });
-				setShowAddSavings(false);
-				// Refresh both customer data and savings list
-				handleRefresh();
-			} else {
-				alert(data.error || "Failed to add savings");
-			}
-		} catch (err) {
-			console.error("Error adding savings:", err);
-			alert("Failed to add savings");
 		}
 	};
 
@@ -481,6 +433,7 @@ export default function CustomerDetailsPage() {
 						</Table>
 					</CardContent>
 				</Card>
+
 				{/* Savings Management */}
 				<Card>
 					<CardHeader className="flex flex-row items-center justify-between">
@@ -500,87 +453,9 @@ export default function CustomerDetailsPage() {
 								/>
 								Refresh
 							</Button>
-							<Button onClick={() => setShowAddSavings(!showAddSavings)}>
-								<Plus className="h-4 w-4 mr-2" />
-								Add Savings
-							</Button>
 						</div>
 					</CardHeader>
 					<CardContent>
-						{showAddSavings && (
-							<div className="mb-6 p-4 border rounded-lg bg-gray-50">
-								<h3 className="font-semibold mb-3">Add Manual Savings</h3>
-								<form onSubmit={handleAddSavings} className="space-y-3">
-									<div>
-										<label className="block text-sm font-medium mb-1">
-											Amount (₦)
-										</label>
-										<input
-											type="number"
-											step="0.01"
-											min="0"
-											value={newSavings.amount}
-											onChange={(e) =>
-												setNewSavings({
-													...newSavings,
-													amount: e.target.value,
-												})
-											}
-											className="w-full p-2 border rounded-md"
-											placeholder="Enter amount"
-											required
-										/>
-									</div>
-									<div>
-										<label className="block text-sm font-medium mb-1">
-											Reason
-										</label>
-										<input
-											type="text"
-											value={newSavings.reason}
-											onChange={(e) =>
-												setNewSavings({
-													...newSavings,
-													reason: e.target.value,
-												})
-											}
-											className="w-full p-2 border rounded-md"
-											placeholder="Enter reason"
-										/>
-									</div>
-									<div>
-										<label className="block text-sm font-medium mb-1">
-											Notes
-										</label>
-										<textarea
-											value={newSavings.notes}
-											onChange={(e) =>
-												setNewSavings({
-													...newSavings,
-													notes: e.target.value,
-												})
-											}
-											className="w-full p-2 border rounded-md"
-											placeholder="Additional notes"
-											rows={2}
-										/>
-									</div>
-									<div className="flex gap-2">
-										<Button type="submit">
-											<DollarSign className="h-4 w-4 mr-2" />
-											Add Savings
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => setShowAddSavings(false)}>
-											Cancel
-										</Button>
-									</div>
-								</form>
-							</div>
-						)}
-
 						<div className="mb-4">
 							<h4 className="font-semibold mb-2">Savings History</h4>
 							{savingsLoading ? (

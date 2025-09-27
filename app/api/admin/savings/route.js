@@ -15,6 +15,35 @@ export async function GET(request) {
 
 		const { searchParams } = new URL(request.url);
 		const userId = searchParams.get("userId");
+		const debugId = searchParams.get("debugId");
+
+		// Debug endpoint to check specific saving record
+		if (debugId) {
+			const { db } = await connectToDatabase();
+			const saving = await db.collection("savings").findOne({
+				_id: new ObjectId(debugId),
+			});
+
+			if (!saving) {
+				return NextResponse.json(
+					{ error: "Saving not found" },
+					{ status: 404 }
+				);
+			}
+
+			return NextResponse.json({
+				status: "success",
+				data: {
+					saving: saving,
+					amountFields: {
+						amount: saving.amount,
+						currentBalance: saving.currentBalance,
+						targetAmount: saving.targetAmount,
+						balance: saving.balance,
+					},
+				},
+			});
+		}
 		const status = searchParams.get("status") || "all";
 		const page = parseInt(searchParams.get("page")) || 1;
 		const limit = parseInt(searchParams.get("limit")) || 10;
@@ -73,7 +102,7 @@ export async function GET(request) {
 	}
 }
 
-// app/api/admin/savings/route.js - Update the PATCH method
+// app/api/admin/savings/route.js - Fixed PATCH method
 export async function PATCH(request) {
 	try {
 		const token = await getToken({ req: request });
@@ -105,8 +134,13 @@ export async function PATCH(request) {
 			);
 		}
 
+		console.log("Found saving record:", saving); // Debug log
+
 		let updateData = {};
 		let userUpdate = {};
+		let depositAmount = 0;
+		let userBefore = null;
+		let userAfter = null;
 
 		switch (action) {
 			case "verify":
@@ -117,8 +151,34 @@ export async function PATCH(request) {
 					);
 				}
 
-				// Get the amount to add to user's balance
-				const depositAmount = saving.amount || saving.currentBalance || 0;
+				// DEBUG: Check all possible amount fields
+				console.log("Amount fields in saving record:", {
+					amount: saving.amount,
+					currentBalance: saving.currentBalance,
+					targetAmount: saving.targetAmount,
+					balance: saving.balance,
+				});
+
+				// Get the amount to add to user's balance - check multiple possible fields
+				depositAmount = 0;
+
+				// Check various possible amount fields
+				if (saving.amount && saving.amount > 0) {
+					depositAmount = saving.amount;
+				} else if (saving.currentBalance && saving.currentBalance > 0) {
+					depositAmount = saving.currentBalance;
+				} else if (saving.targetAmount && saving.targetAmount > 0) {
+					depositAmount = saving.targetAmount;
+				} else if (saving.balance && saving.balance > 0) {
+					depositAmount = saving.balance;
+				} else {
+					return NextResponse.json(
+						{ error: "No valid amount found in savings record" },
+						{ status: 400 }
+					);
+				}
+
+				console.log("Using deposit amount:", depositAmount); // Debug log
 
 				updateData = {
 					status: "verified",
@@ -134,6 +194,41 @@ export async function PATCH(request) {
 						totalSavings: depositAmount,
 					},
 				};
+
+				// Convert userId to ObjectId regardless of how it's stored
+				const userId =
+					saving.userId instanceof ObjectId
+						? saving.userId
+						: new ObjectId(saving.userId);
+
+				console.log("Updating user balance:", {
+					userId,
+					depositAmount,
+					currentBalance: saving.currentBalance,
+				}); // Debug log
+
+				// Get user before update for debugging
+				userBefore = await db.collection("users").findOne({ _id: userId });
+				console.log("User balance before update:", userBefore?.savingsBalance);
+
+				// Update user balance if verifying
+				const userUpdateResult = await db
+					.collection("users")
+					.updateOne({ _id: userId }, userUpdate);
+
+				console.log("User update result:", userUpdateResult); // Debug log
+
+				// Get user after update for debugging
+				userAfter = await db.collection("users").findOne({ _id: userId });
+				console.log("User balance after update:", userAfter?.savingsBalance);
+
+				if (userUpdateResult.matchedCount === 0) {
+					return NextResponse.json(
+						{ error: "User not found" },
+						{ status: 404 }
+					);
+				}
+
 				break;
 
 			case "reject":
@@ -157,6 +252,7 @@ export async function PATCH(request) {
 					currentBalance: Number(amount),
 					updatedAt: new Date(),
 				};
+				depositAmount = Number(amount);
 				break;
 
 			default:
@@ -164,25 +260,29 @@ export async function PATCH(request) {
 		}
 
 		// Update saving record
-		await db
+		const savingUpdateResult = await db
 			.collection("savings")
 			.updateOne({ _id: new ObjectId(savingId) }, { $set: updateData });
 
-		// Update user balance if verifying
-		if (action === "verify") {
-			await db
-				.collection("users")
-				.updateOne({ _id: new ObjectId(saving.userId) }, userUpdate);
-		}
+		console.log("Saving update result:", savingUpdateResult); // Debug log
 
 		return NextResponse.json({
 			status: "success",
 			message: `Saving ${action}ed successfully`,
+			data: {
+				savingId: savingId,
+				amount: depositAmount,
+				previousBalance: userBefore?.savingsBalance,
+				newBalance: userAfter?.savingsBalance,
+			},
 		});
 	} catch (error) {
 		console.error("PATCH /api/admin/savings error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{
+				error: "Internal server error",
+				details: error.message,
+			},
 			{ status: 500 }
 		);
 	}
