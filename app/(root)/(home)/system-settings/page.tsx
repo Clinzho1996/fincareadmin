@@ -300,7 +300,10 @@ export default function AdminSettingsPage() {
 										One-time processing fee applied to loan amount
 									</p>
 								</div>
-								<Button type="submit" disabled={saving} className="w-full">
+								<Button
+									type="submit"
+									disabled={saving}
+									className="w-full bg-primary-1 text-white">
 									{saving ? (
 										<>
 											<Loader2 className="h-4 w-4 animate-spin mr-2" />

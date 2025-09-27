@@ -16,14 +16,14 @@ export const sidebarLinks = [
 		imgUrl: "/icons/customers.svg",
 	},
 	{
-		label: "Subscription Management",
-		route: "/payments",
-		imgUrl: "/icons/payments.svg",
-	},
-	{
 		label: "Loan Management",
 		route: "/loans",
 		imgUrl: "/icons/orders.svg",
+	},
+	{
+		label: "Savings Management",
+		route: "/savings-management",
+		imgUrl: "/icons/trans.svg",
 	},
 	{
 		label: "Auction Management",

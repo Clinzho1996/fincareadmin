@@ -2,7 +2,7 @@ import FinanceReport from "@/components/FinanceReport";
 import HeaderBox from "@/components/HeaderBox";
 import Hero from "@/components/Hero";
 import SalesTracker from "@/components/SalesTracker";
-import Table from "@/config/columns";
+import CustomerTable from "@/config/customer-columns";
 
 function Dashboard() {
 	return (
@@ -16,7 +16,7 @@ function Dashboard() {
 					<FinanceReport />
 				</div>
 
-				<Table />
+				<CustomerTable />
 			</div>
 		</div>
 	);
