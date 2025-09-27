@@ -7,7 +7,7 @@ import CustomerTable from "@/config/customer-columns";
 function Dashboard() {
 	return (
 		<div className="w-full overflow-x-hidden">
-			<HeaderBox title="Dashboard" />
+			<HeaderBox title="Dashboard Managment" />
 			<div className="bg-[#F6F8FA] flex flex-col px-6 py-4 w-full max-w-[100vw] gap-4">
 				{/* Dashboard content goes here */}
 				<Hero />
