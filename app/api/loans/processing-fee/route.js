@@ -62,11 +62,20 @@ export async function POST(request) {
 			{
 				$set: {
 					"loanDetails.processingFeePaid": true,
-					status: "active", // Change status from "approved" to "active"
+					status: "active",
 					updatedAt: new Date(),
 				},
 			}
 		);
+
+		console.log("Update Result:", updateResult);
+
+		if (updateResult.modifiedCount === 0) {
+			return NextResponse.json(
+				{ error: "Loan was found but not updated." },
+				{ status: 400 }
+			);
+		}
 
 		// Create a transaction record for the processing fee payment
 		await db.collection("transactions").insertOne({
