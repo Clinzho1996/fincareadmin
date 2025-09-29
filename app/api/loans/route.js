@@ -144,7 +144,7 @@ export async function POST(request) {
 			userId: authResult.userId,
 			loanAmount: Number(loanAmount),
 			purpose,
-			duration: Number(duration),
+			duration: Number(duration) || 12,
 			debitFromSavings: debitFromSavings || false,
 			borrowerDetails: {
 				fullName,
