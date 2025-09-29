@@ -1,13 +1,24 @@
 // app/api/admin/loans/repayments/route.js
-import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+
+// Helper function for admin authentication
+async function adminOnly(request) {
+	const token = await getToken({ req: request });
+
+	if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
+		return { error: "Unauthorized. Admin access required.", status: 403 };
+	}
+
+	return { userId: token.sub, role: token.role };
+}
 
 // GET - Get all repayments for admin review
 export async function GET(request) {
 	try {
-		const authResult = await authenticate(request);
+		const authResult = await adminOnly(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
@@ -55,6 +66,7 @@ export async function GET(request) {
 						reviewNotes: 1,
 						"loan.loanAmount": 1,
 						"loan.purpose": 1,
+						"loan.loanDetails": 1,
 						"user.firstName": 1,
 						"user.lastName": 1,
 						"user.email": 1,
@@ -133,37 +145,69 @@ export async function PATCH(request) {
 			.collection("loan_repayments")
 			.updateOne({ _id: new ObjectId(repaymentId) }, { $set: updateData });
 
-		// If approved, update loan status and user's total loans
+		// If approved, update loan balance and create payment record
 		if (status === "approved") {
-			// Mark loan as repaid
-			await db.collection("loans").updateOne(
-				{ _id: repayment.loanId },
-				{
-					$set: {
-						status: "repaid",
-						repaymentStatus: "completed",
-						updatedAt: new Date(),
-					},
-				}
-			);
+			// Get the loan to calculate remaining balance
+			const loan = await db.collection("loans").findOne({
+				_id: repayment.loanId,
+			});
 
-			// Update user's total loans (subtract the repaid amount)
-			await db
-				.collection("users")
-				.updateOne(
-					{ _id: repayment.userId },
-					{ $inc: { totalLoans: -repayment.amount } }
+			if (loan) {
+				const currentBalance =
+					loan.loanDetails?.remainingBalance ||
+					loan.loanDetails?.totalLoanAmount;
+				const newBalance = Math.max(0, currentBalance - repayment.amount);
+
+				// Update loan balance and status
+				const updateLoanData = {
+					"loanDetails.remainingBalance": newBalance,
+					"loanDetails.paidAmount":
+						(loan.loanDetails?.paidAmount || 0) + repayment.amount,
+					updatedAt: new Date(),
+				};
+
+				// If fully paid, mark as repaid
+				if (newBalance <= 0) {
+					updateLoanData.status = "repaid";
+					updateLoanData.repaymentStatus = "completed";
+				} else {
+					updateLoanData.status = "active";
+				}
+
+				await db.collection("loans").updateOne(
+					{ _id: repayment.loanId },
+					{
+						$set: updateLoanData,
+						$push: {
+							payments: {
+								amount: repayment.amount,
+								type: "repayment",
+								date: new Date(),
+								description: "Monthly loan repayment",
+								repaymentId: repayment._id,
+							},
+						},
+					}
 				);
 
-			// Create transaction record
-			await db.collection("transactions").insertOne({
-				userId: repayment.userId,
-				type: "loan_repayment",
-				amount: repayment.amount,
-				description: `Loan repayment for loan ${repayment.loanId}`,
-				status: "completed",
-				createdAt: new Date(),
-			});
+				// Update user's total loans (subtract the repaid amount)
+				await db
+					.collection("users")
+					.updateOne(
+						{ _id: repayment.userId },
+						{ $inc: { totalLoans: -repayment.amount } }
+					);
+
+				// Create transaction record
+				await db.collection("transactions").insertOne({
+					userId: repayment.userId,
+					type: "loan_repayment",
+					amount: repayment.amount,
+					description: `Loan repayment for loan ${repayment.loanId}`,
+					status: "completed",
+					createdAt: new Date(),
+				});
+			}
 		}
 
 		return NextResponse.json({
