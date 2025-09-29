@@ -1,3 +1,11 @@
+// app/api/loans/repayment/route.js
+export const dynamic = "force-dynamic";
+
+import { authenticate } from "@/lib/middleware";
+import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
+import { NextResponse } from "next/server";
+
 // app/api/loans/repayment/route.js - Updated POST method
 export async function POST(request) {
 	try {
