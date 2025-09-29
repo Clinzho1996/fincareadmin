@@ -29,7 +29,7 @@ export async function POST(request) {
 		// Find the loan
 		const loan = await db.collection("loans").findOne({
 			_id: new ObjectId(loanId),
-			userId: authResult.userId, // Ensure user owns the loan
+			userId: new ObjectId(authResult.userId), // Ensure user owns the loan
 		});
 
 		if (!loan) {
@@ -52,8 +52,12 @@ export async function POST(request) {
 			);
 		}
 
+		// Calculate processing fee amount
+		const processingFeeAmount =
+			loan.loanDetails?.processingFee || loan.loanAmount * 0.01;
+
 		// Update loan to mark processing fee as paid and activate the loan
-		await db.collection("loans").updateOne(
+		const updateResult = await db.collection("loans").updateOne(
 			{ _id: loan._id },
 			{
 				$set: {
@@ -66,23 +70,29 @@ export async function POST(request) {
 
 		// Create a transaction record for the processing fee payment
 		await db.collection("transactions").insertOne({
-			userId: new ObjectId(token.sub),
+			userId: new ObjectId(authResult.userId),
 			loanId: loan._id,
 			type: "processing_fee",
-			amount: loan.loanDetails?.processingFee || loan.loanAmount * 0.01, // 1% processing fee
+			amount: processingFeeAmount,
 			description: "Loan processing fee payment",
 			status: "completed",
 			createdAt: new Date(),
 		});
 
+		console.log(
+			`Processing fee paid for loan ${loanId} by user ${authResult.userId}`
+		);
+
 		return NextResponse.json({
+			status: "success",
 			message: "Processing fee payment recorded successfully",
 			processingFeePaid: true,
+			loanStatus: "active",
 		});
 	} catch (error) {
 		console.error("POST /api/loans/processing-fee error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error: " + error.message },
 			{ status: 500 }
 		);
 	}
