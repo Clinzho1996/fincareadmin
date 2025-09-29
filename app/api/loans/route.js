@@ -1,3 +1,9 @@
+// app/api/loans/route.js
+import { authenticate } from "@/lib/middleware";
+import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
+import { NextResponse } from "next/server";
+
 // app/api/loans/route.js - Updated GET method
 export async function GET(request) {
 	try {
@@ -132,6 +138,111 @@ export async function POST(request) {
 		}
 
 		const { db } = await connectToDatabase();
+		// Fix loans with null duration and missing loan details
+		db.loans.updateMany(
+			{
+				$or: [
+					{ duration: null },
+					{ "loanDetails.interestAmount": null },
+					{ "loanDetails.totalLoanAmount": null },
+					{ "loanDetails.monthlyInstallment": null },
+					{ "loanDetails.remainingBalance": null },
+				],
+			},
+			[
+				{
+					$set: {
+						duration: { $ifNull: ["$duration", 12] },
+						"loanDetails.principalAmount": {
+							$ifNull: ["$loanDetails.principalAmount", "$loanAmount"],
+						},
+						"loanDetails.processingFee": {
+							$ifNull: [
+								"$loanDetails.processingFee",
+								{ $multiply: ["$loanAmount", 0.01] },
+							],
+						},
+						"loanDetails.interestAmount": {
+							$ifNull: [
+								"$loanDetails.interestAmount",
+								{
+									$multiply: [
+										"$loanAmount",
+										0.1,
+										{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
+									],
+								},
+							],
+						},
+						"loanDetails.totalLoanAmount": {
+							$ifNull: [
+								"$loanDetails.totalLoanAmount",
+								{
+									$add: [
+										"$loanAmount",
+										{
+											$multiply: [
+												"$loanAmount",
+												0.1,
+												{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
+											],
+										},
+									],
+								},
+							],
+						},
+						"loanDetails.monthlyInstallment": {
+							$ifNull: [
+								"$loanDetails.monthlyInstallment",
+								{
+									$divide: [
+										{
+											$add: [
+												"$loanAmount",
+												{
+													$multiply: [
+														"$loanAmount",
+														0.1,
+														{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
+													],
+												},
+											],
+										},
+										{ $ifNull: ["$duration", 12] },
+									],
+								},
+							],
+						},
+						"loanDetails.remainingBalance": {
+							$ifNull: [
+								"$loanDetails.remainingBalance",
+								{
+									$add: [
+										"$loanAmount",
+										{
+											$multiply: [
+												"$loanAmount",
+												0.1,
+												{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
+											],
+										},
+									],
+								},
+							],
+						},
+						"loanDetails.paidAmount": {
+							$ifNull: ["$loanDetails.paidAmount", 0],
+						},
+						"loanDetails.interestRate": {
+							$ifNull: ["$loanDetails.interestRate", 0.1],
+						},
+						"loanDetails.processingFeePaid": {
+							$ifNull: ["$loanDetails.processingFeePaid", false],
+						},
+					},
+				},
+			]
+		);
 
 		// Use the same calculation as fallback function
 		const loanDetails = calculateLoanDetailsForUser({
