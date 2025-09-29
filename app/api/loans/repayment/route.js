@@ -18,17 +18,14 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Get FormData from request
-		const formData = await request.formData();
-
-		const loanId = formData.get("loanId");
-		const amount = formData.get("amount");
-		const proofFile = formData.get("proof");
+		// Parse JSON body instead of FormData
+		const { loanId, amount, proofImage, fileName } = await request.json();
 
 		console.log("Received repayment data:", {
 			loanId,
 			amount,
-			hasProof: !!proofFile,
+			hasProof: !!proofImage,
+			proofLength: proofImage ? proofImage.length : 0,
 		});
 
 		if (!loanId || !amount) {
@@ -55,14 +52,13 @@ export async function POST(request) {
 			);
 		}
 
-		// Handle file upload - in a real app, you'd upload to cloud storage
-		// For now, we'll just store the fact that a proof was uploaded
+		// Handle base64 image - store it directly or upload to cloud storage
 		let proofUrl = null;
-		if (proofFile) {
-			// In a real implementation, you'd upload to S3, Cloudinary, etc.
-			// For demo purposes, we'll just store a placeholder
-			proofUrl = `uploaded/proof-${Date.now()}.jpg`;
-			console.log("Proof file received:", proofFile.name, proofFile.type);
+		if (proofImage) {
+			// For now, we'll store the base64 string directly
+			// In production, you might want to upload to cloud storage
+			proofUrl = `data:image/jpeg;base64,${proofImage}`;
+			console.log("Proof image received, length:", proofImage.length);
 		}
 
 		// Create repayment record
@@ -71,6 +67,7 @@ export async function POST(request) {
 			userId: new ObjectId(authResult.userId),
 			amount: parseFloat(amount),
 			proofImage: proofUrl,
+			fileName: fileName || "payment-proof.jpg",
 			status: "pending_review",
 			submittedAt: new Date(),
 			createdAt: new Date(),
