@@ -29,7 +29,7 @@ export async function POST(request) {
 		// Find the loan
 		const loan = await db.collection("loans").findOne({
 			_id: new ObjectId(loanId),
-			userId: new ObjectId(token.sub), // Ensure user owns the loan
+			userId: authResult.userId, // Ensure user owns the loan
 		});
 
 		if (!loan) {
