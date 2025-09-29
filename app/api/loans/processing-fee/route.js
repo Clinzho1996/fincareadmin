@@ -1,20 +1,18 @@
 // app/api/loans/processing-fee/route.js
 export const dynamic = "force-dynamic";
 
+import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
-import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
 	try {
-		// Authenticate the request
-		const token = await getToken({ req: request });
-
-		if (!token) {
+		const authResult = await authenticate(request);
+		if (authResult.error) {
 			return NextResponse.json(
-				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ error: authResult.error },
+				{ status: authResult.status }
 			);
 		}
 
