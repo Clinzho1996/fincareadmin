@@ -1,9 +1,4 @@
-// app/api/loans/route.js
-import { authenticate } from "@/lib/middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
-import { NextResponse } from "next/server";
-
+// app/api/loans/route.js - Updated GET method
 export async function GET(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -20,12 +15,19 @@ export async function GET(request) {
 			.find({ userId: authResult.userId })
 			.toArray();
 
-		// Enhance loans with calculated details if missing
+		// Enhance loans with calculated details if missing or null
 		const enhancedLoans = loans.map((loan) => {
-			if (!loan.loanDetails || !loan.loanDetails.principalAmount) {
+			// Check if loan details are missing or have null values
+			if (
+				!loan.loanDetails ||
+				loan.loanDetails.interestAmount === null ||
+				loan.loanDetails.totalLoanAmount === null ||
+				loan.loanDetails.monthlyInstallment === null ||
+				loan.loanDetails.remainingBalance === null
+			) {
 				return {
 					...loan,
-					loanDetails: calculateLoanDetailsForUser(loan),
+					loanDetails: calculateCompleteLoanDetails(loan),
 				};
 			}
 			return loan;
@@ -41,14 +43,14 @@ export async function GET(request) {
 	}
 }
 
-// Helper function to calculate loan details for user (fallback)
-function calculateLoanDetailsForUser(loan) {
+// Enhanced calculation function that handles null values
+function calculateCompleteLoanDetails(loan) {
 	// Use default rates as fallback
 	const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
 	const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
 
 	const principalAmount = Number(loan.loanAmount);
-	const duration = Number(loan.duration) || 12;
+	const duration = Number(loan.duration) || 12; // Default to 12 months if null
 
 	// Calculate loan details
 	const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
@@ -61,17 +63,31 @@ function calculateLoanDetailsForUser(loan) {
 		loan.payments?.reduce((total, payment) => total + payment.amount, 0) || 0;
 	const remainingBalance = Math.max(0, totalLoanAmount - paidAmount);
 
+	// Preserve existing values if they exist and are not null
+	const existingDetails = loan.loanDetails || {};
+
 	return {
-		principalAmount,
-		processingFee,
-		interestRate: LOAN_INTEREST_RATE,
-		interestAmount,
-		totalLoanAmount,
-		monthlyInstallment,
-		remainingBalance,
-		paidAmount,
-		processingFeePaid: loan.loanDetails?.processingFeePaid || false,
-		...loan.loanDetails, // Preserve any existing details
+		principalAmount: existingDetails.principalAmount || principalAmount,
+		processingFee: existingDetails.processingFee || processingFee,
+		interestRate: existingDetails.interestRate || LOAN_INTEREST_RATE,
+		interestAmount:
+			existingDetails.interestAmount !== null
+				? existingDetails.interestAmount
+				: interestAmount,
+		totalLoanAmount:
+			existingDetails.totalLoanAmount !== null
+				? existingDetails.totalLoanAmount
+				: totalLoanAmount,
+		monthlyInstallment:
+			existingDetails.monthlyInstallment !== null
+				? existingDetails.monthlyInstallment
+				: monthlyInstallment,
+		remainingBalance:
+			existingDetails.remainingBalance !== null
+				? existingDetails.remainingBalance
+				: remainingBalance,
+		paidAmount: existingDetails.paidAmount || paidAmount,
+		processingFeePaid: existingDetails.processingFeePaid || false,
 	};
 }
 
