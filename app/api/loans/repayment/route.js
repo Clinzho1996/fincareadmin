@@ -1,11 +1,4 @@
-// app/api/loans/repayment/route.js
-export const dynamic = "force-dynamic";
-
-import { authenticate } from "@/lib/middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
-import { NextResponse } from "next/server";
-
+// app/api/loans/repayment/route.js - Updated POST method
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -26,6 +19,8 @@ export async function POST(request) {
 			amount,
 			hasProof: !!proofImage,
 			proofLength: proofImage ? proofImage.length : 0,
+			authUserId: authResult.userId,
+			authUserIdType: typeof authResult.userId,
 		});
 
 		if (!loanId || !amount) {
@@ -35,13 +30,48 @@ export async function POST(request) {
 			);
 		}
 
-		// Find the loan
+		// Debug: Check what loans exist for this user
+		const userLoans = await db
+			.collection("loans")
+			.find({
+				userId: new ObjectId(authResult.userId),
+			})
+			.toArray();
+
+		console.log("User loans found:", userLoans.length);
+		userLoans.forEach((loan) => {
+			console.log(
+				`Loan: ${loan._id}, Status: ${loan.status}, UserId: ${loan.userId}`
+			);
+		});
+
+		// Find the specific loan
 		const loan = await db.collection("loans").findOne({
 			_id: new ObjectId(loanId),
 			userId: new ObjectId(authResult.userId),
 		});
 
+		console.log("Loan query result:", loan ? "FOUND" : "NOT FOUND");
+		console.log("Searching for loanId:", loanId);
+		console.log("Searching for userId:", authResult.userId);
+
 		if (!loan) {
+			// Let's check if the loan exists at all, regardless of user
+			const anyLoan = await db.collection("loans").findOne({
+				_id: new ObjectId(loanId),
+			});
+
+			console.log("Loan exists in database:", anyLoan ? "YES" : "NO");
+			if (anyLoan) {
+				console.log("Loan found but userId mismatch:");
+				console.log("Loan userId:", anyLoan.userId);
+				console.log("Auth userId:", authResult.userId);
+				console.log(
+					"UserIds match:",
+					anyLoan.userId.toString() === authResult.userId
+				);
+			}
+
 			return NextResponse.json({ error: "Loan not found" }, { status: 404 });
 		}
 
@@ -97,6 +127,7 @@ export async function POST(request) {
 		});
 	} catch (error) {
 		console.error("POST /api/loans/repayment error:", error);
+		console.error("Error stack:", error.stack);
 		return NextResponse.json(
 			{ error: "Internal server error: " + error.message },
 			{ status: 500 }
