@@ -4,10 +4,6 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
-// Loan configuration constants
-const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
-const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
-
 export async function GET(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -24,7 +20,18 @@ export async function GET(request) {
 			.find({ userId: authResult.userId })
 			.toArray();
 
-		return NextResponse.json({ loans });
+		// Enhance loans with calculated details if missing
+		const enhancedLoans = loans.map((loan) => {
+			if (!loan.loanDetails || !loan.loanDetails.principalAmount) {
+				return {
+					...loan,
+					loanDetails: calculateLoanDetailsForUser(loan),
+				};
+			}
+			return loan;
+		});
+
+		return NextResponse.json({ loans: enhancedLoans });
 	} catch (error) {
 		console.error("GET /api/loans error:", error);
 		return NextResponse.json(
@@ -32,6 +39,40 @@ export async function GET(request) {
 			{ status: 500 }
 		);
 	}
+}
+
+// Helper function to calculate loan details for user (fallback)
+function calculateLoanDetailsForUser(loan) {
+	// Use default rates as fallback
+	const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
+	const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
+
+	const principalAmount = Number(loan.loanAmount);
+	const duration = Number(loan.duration) || 12;
+
+	// Calculate loan details
+	const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
+	const interestAmount = principalAmount * LOAN_INTEREST_RATE * (duration / 12);
+	const totalLoanAmount = principalAmount + interestAmount;
+	const monthlyInstallment = totalLoanAmount / duration;
+
+	// Calculate paid amount from payments
+	const paidAmount =
+		loan.payments?.reduce((total, payment) => total + payment.amount, 0) || 0;
+	const remainingBalance = Math.max(0, totalLoanAmount - paidAmount);
+
+	return {
+		principalAmount,
+		processingFee,
+		interestRate: LOAN_INTEREST_RATE,
+		interestAmount,
+		totalLoanAmount,
+		monthlyInstallment,
+		remainingBalance,
+		paidAmount,
+		processingFeePaid: loan.loanDetails?.processingFeePaid || false,
+		...loan.loanDetails, // Preserve any existing details
+	};
 }
 
 export async function POST(request) {
@@ -76,17 +117,16 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Calculate loan details
-		const principalAmount = Number(loanAmount);
-		const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
-		const interestAmount =
-			principalAmount * LOAN_INTEREST_RATE * (Number(duration) / 12);
-		const totalLoanAmount = principalAmount + interestAmount;
-		const monthlyInstallment = totalLoanAmount / Number(duration);
+		// Use the same calculation as fallback function
+		const loanDetails = calculateLoanDetailsForUser({
+			loanAmount,
+			duration,
+			loanDetails: { processingFeePaid: false },
+		});
 
 		const newLoan = {
 			userId: authResult.userId,
-			loanAmount: principalAmount,
+			loanAmount: Number(loanAmount),
 			purpose,
 			duration: Number(duration),
 			debitFromSavings: debitFromSavings || false,
@@ -103,17 +143,7 @@ export async function POST(request) {
 			governmentId: governmentId || "",
 			activeInvestments: activeInvestments || [],
 			status: "pending",
-			loanDetails: {
-				principalAmount,
-				processingFee,
-				interestRate: LOAN_INTEREST_RATE,
-				interestAmount,
-				totalLoanAmount,
-				monthlyInstallment,
-				remainingBalance: totalLoanAmount,
-				paidAmount: 0,
-				processingFeePaid: false,
-			},
+			loanDetails: loanDetails,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			payments: [],
