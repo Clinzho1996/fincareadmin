@@ -3,24 +3,28 @@ export const dynamic = "force-dynamic";
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+
+async function adminOnly(request) {
+	const token = await getToken({ req: request });
+
+	if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
+		return { error: "Unauthorized. Admin access required.", status: 403 };
+	}
+
+	return { userId: token.sub, role: token.role };
+}
 
 export async function POST(request) {
 	try {
-		// Authenticate admin user
-		const authResult = await authenticate(request);
+		const authResult = await adminOnly(request);
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
 				{ status: authResult.status }
 			);
 		}
-
-		// Check if user is admin (you'll need to implement this check)
-		// const isAdmin = await checkAdmin(authResult.userId);
-		// if (!isAdmin) {
-		//   return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-		// }
 
 		const { db } = await connectToDatabase();
 		const { repaymentId, action } = await request.json(); // action: 'approve' or 'reject'

@@ -6,6 +6,7 @@ import {
 	CheckCircle,
 	ChevronLeft,
 	ChevronRight,
+	CreditCard,
 	DollarSign,
 	Eye,
 	FileText,
@@ -15,6 +16,7 @@ import {
 	Search,
 	XCircle,
 } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 const AdminLoansDashboard = () => {
@@ -31,6 +33,8 @@ const AdminLoansDashboard = () => {
 	const [error, setError] = useState("");
 	const [actionDropdownOpen, setActionDropdownOpen] = useState(null);
 	const [isProcessingAction, setIsProcessingAction] = useState(false);
+	const [pendingRepayments, setPendingRepayments] = useState([]);
+	const [isRepaymentsModalOpen, setIsRepaymentsModalOpen] = useState(false);
 
 	useEffect(() => {
 		fetchLoans();
@@ -91,6 +95,23 @@ const AdminLoansDashboard = () => {
 			setError("Failed to load loans data");
 		} finally {
 			setIsLoading(false);
+		}
+	};
+
+	const fetchPendingRepayments = async (loanId) => {
+		try {
+			const response = await fetch(
+				`/api/admin/loans/repayments?loanId=${loanId}&status=pending_review`
+			);
+			if (!response.ok) {
+				throw new Error("Failed to fetch pending repayments");
+			}
+			const data = await response.json();
+			setPendingRepayments(data.repayments || []);
+			setIsRepaymentsModalOpen(true);
+		} catch (error) {
+			console.error("Error fetching repayments:", error);
+			alert("Failed to fetch pending repayments");
 		}
 	};
 
@@ -218,9 +239,56 @@ const AdminLoansDashboard = () => {
 		}
 	};
 
+	// NEW: Handle payment confirmation
+	const handlePaymentConfirmation = async (repaymentId, action) => {
+		try {
+			setIsProcessingAction(true);
+			const response = await fetch(`/api/admin/loans/repayments/confirm`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					repaymentId,
+					action, // 'approve' or 'reject'
+				}),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || "Failed to process payment");
+			}
+
+			const result = await response.json();
+			alert(
+				`Payment ${action}d successfully${
+					result.isFullyPaid ? " - Loan fully paid!" : ""
+				}`
+			);
+
+			// Refresh data
+			fetchLoans();
+			if (selectedLoan) {
+				// Refresh the pending repayments list
+				fetchPendingRepayments(selectedLoan._id);
+			}
+			setIsRepaymentsModalOpen(false);
+		} catch (error) {
+			console.error("Error processing payment:", error);
+			alert(error.message || "Failed to process payment");
+		} finally {
+			setIsProcessingAction(false);
+		}
+	};
+
 	const viewLoanDetails = (loan) => {
 		setSelectedLoan(loan);
 		setIsDetailModalOpen(true);
+	};
+
+	const viewPendingPayments = (loan) => {
+		setSelectedLoan(loan);
+		fetchPendingRepayments(loan._id);
 	};
 
 	const getStatusBadge = (status) => {
@@ -263,6 +331,12 @@ const AdminLoansDashboard = () => {
 						Liquidated
 					</span>
 				);
+			case "payment_pending":
+				return (
+					<span className={`${baseClasses} bg-orange-100 text-orange-800`}>
+						Payment Pending
+					</span>
+				);
 			default:
 				return (
 					<span className={`${baseClasses} bg-gray-100 text-gray-800`}>
@@ -281,8 +355,6 @@ const AdminLoansDashboard = () => {
 		);
 	};
 
-	// app/admin/loans/page.jsx
-	// Update the fee display logic to handle both structures
 	const formatCurrency = (amount) => {
 		if (amount === undefined || amount === null) return "₦0.00";
 		return new Intl.NumberFormat("en-NG", {
@@ -310,19 +382,16 @@ const AdminLoansDashboard = () => {
 		return months;
 	};
 
-	// Add this helper function to calculate missing loan details
 	const calculateLoanDetails = (loan) => {
 		const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
 		const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
 		const DEFAULT_LOAN_DURATION = 12; // 1 year default
 
-		// Parse duration from string or use default
 		let duration = DEFAULT_LOAN_DURATION;
 		if (loan.duration) {
 			if (typeof loan.duration === "number") {
 				duration = loan.duration;
 			} else if (typeof loan.duration === "string") {
-				// Extract numbers from string like "5 months"
 				const match = loan.duration.match(/(\d+)/);
 				duration = match ? parseInt(match[1]) : DEFAULT_LOAN_DURATION;
 			}
@@ -330,14 +399,11 @@ const AdminLoansDashboard = () => {
 
 		const principalAmount = Number(loan.loanAmount);
 		const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
-
-		// Calculate interest (10% per annum for the loan duration)
 		const interestAmount =
 			principalAmount * LOAN_INTEREST_RATE * (duration / 12);
 		const totalLoanAmount = principalAmount + interestAmount;
 		const monthlyInstallment = duration > 0 ? totalLoanAmount / duration : 0;
 
-		// Return enhanced loan details, preserving existing values if they exist
 		return {
 			principalAmount: loan.loanDetails?.principalAmount || principalAmount,
 			processingFee: loan.loanDetails?.processingFee || processingFee,
@@ -352,9 +418,7 @@ const AdminLoansDashboard = () => {
 		};
 	};
 
-	// Update the getLoanDetails function to use the calculation
 	const getLoanDetails = (loan) => {
-		// For loans without proper loanDetails or with null values, calculate on the fly
 		if (
 			!loan.loanDetails ||
 			loan.loanDetails.interestAmount === null ||
@@ -418,6 +482,7 @@ const AdminLoansDashboard = () => {
 					<p className="text-xs text-gray-500 mt-1">Unpaid processing fees</p>
 				</div>
 			</div>
+
 			{/* Main Content */}
 			<div className="bg-white rounded-lg shadow border">
 				<div className="p-6 border-b">
@@ -452,6 +517,7 @@ const AdminLoansDashboard = () => {
 								<option value="active">Active</option>
 								<option value="completed">Completed</option>
 								<option value="liquidated">Liquidated</option>
+								<option value="payment_pending">Payment Pending</option>
 							</select>
 
 							<select
@@ -475,7 +541,7 @@ const AdminLoansDashboard = () => {
 
 				<div className="p-6">
 					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200">
+						<table className="w-full divide-y divide-gray-200">
 							<thead>
 								<tr>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -598,6 +664,16 @@ const AdminLoansDashboard = () => {
 																	View Details
 																</button>
 
+																{/* FIXED: Only show "View Pending Payments" for payment_pending status */}
+																{loan.status === "payment_pending" && (
+																	<button
+																		onClick={() => viewPendingPayments(loan)}
+																		className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+																		<CreditCard className="mr-2 h-4 w-4" />
+																		View Pending Payments
+																	</button>
+																)}
+
 																{loan.status === "approved" &&
 																	!loan.loanDetails?.processingFeePaid && (
 																		<button
@@ -702,6 +778,7 @@ const AdminLoansDashboard = () => {
 					)}
 				</div>
 			</div>
+
 			{/* Loan Detail Modal */}
 			<Modal
 				title="Loan Application Details"
@@ -736,7 +813,6 @@ const AdminLoansDashboard = () => {
 								</div>
 							</div>
 
-							{/* Loan Information */}
 							{/* Loan Information */}
 							<div className="bg-gray-50 p-4 rounded-lg">
 								<h3 className="font-medium text-gray-700 text-lg mb-3">
@@ -780,8 +856,7 @@ const AdminLoansDashboard = () => {
 									<p>
 										<span className="font-semibold">Duration:</span>{" "}
 										{(() => {
-											// Extract duration from loan object
-											let duration = "12 months"; // default
+											let duration = "12 months";
 											if (selectedLoan.duration) {
 												if (typeof selectedLoan.duration === "number") {
 													duration = `${selectedLoan.duration} months`;
@@ -889,6 +964,18 @@ const AdminLoansDashboard = () => {
 								onClick={() => setIsDetailModalOpen(false)}>
 								Close
 							</button>
+							{/* FIXED: Only show "View Pending Payments" for payment_pending status in modal */}
+							{selectedLoan.status === "payment_pending" && (
+								<button
+									className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2"
+									onClick={() => {
+										viewPendingPayments(selectedLoan);
+										setIsDetailModalOpen(false);
+									}}>
+									<CreditCard className="h-4 w-4" />
+									View Pending Payments
+								</button>
+							)}
 							{selectedLoan.status === "pending" && (
 								<>
 									<button
@@ -909,6 +996,107 @@ const AdminLoansDashboard = () => {
 									</button>
 								</>
 							)}
+						</div>
+					</div>
+				)}
+			</Modal>
+
+			{/* NEW: Pending Repayments Modal */}
+			<Modal
+				title="Pending Loan Payments"
+				isOpen={isRepaymentsModalOpen}
+				onClose={() => setIsRepaymentsModalOpen(false)}
+				className="max-w-4xl">
+				{selectedLoan && (
+					<div className="space-y-6">
+						<div className="bg-blue-50 p-4 rounded-lg">
+							<h3 className="font-medium text-blue-700 text-lg mb-2">
+								Loan: {formatCurrency(selectedLoan.loanAmount)} -{" "}
+								{selectedLoan.borrowerDetails?.fullName}
+							</h3>
+							<p className="text-blue-600">
+								Remaining Balance:{" "}
+								{formatCurrency(getLoanDetails(selectedLoan).remainingBalance)}
+							</p>
+						</div>
+
+						{pendingRepayments.length === 0 ? (
+							<div className="text-center py-8">
+								<CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+								<p className="text-gray-500">
+									No pending payments for this loan
+								</p>
+							</div>
+						) : (
+							<div className="space-y-4">
+								{pendingRepayments.map((repayment) => (
+									<div
+										key={repayment._id}
+										className="border rounded-lg p-4 bg-gray-50">
+										<div className="flex justify-between items-start mb-3">
+											<div>
+												<h4 className="font-semibold">
+													Payment: {formatCurrency(repayment.amount)}
+												</h4>
+												<p className="text-sm text-gray-500">
+													Submitted: {formatDate(repayment.submittedAt)}
+												</p>
+											</div>
+											<span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+												Pending Review
+											</span>
+										</div>
+
+										{repayment.proofImage && (
+											<div className="mb-3">
+												<p className="text-sm font-medium mb-2">
+													Proof of Payment:
+												</p>
+												<Image
+													src={repayment.proofImage}
+													alt="Payment proof"
+													width={100}
+													height={100}
+													className="w-[100px] h-[100px] rounded border"
+													onClick={() =>
+														window.open(repayment.proofImage, "_blank")
+													}
+													style={{ cursor: "pointer" }}
+												/>
+											</div>
+										)}
+
+										<div className="flex gap-2">
+											<button
+												onClick={() =>
+													handlePaymentConfirmation(repayment._id, "approve")
+												}
+												disabled={isProcessingAction}
+												className="px-4 py-2 bg-primary-1 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+												<CheckCircle className="h-4 w-4" />
+												Approve Payment
+											</button>
+											<button
+												onClick={() =>
+													handlePaymentConfirmation(repayment._id, "reject")
+												}
+												disabled={isProcessingAction}
+												className="px-4 py-2 bg-red text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
+												<XCircle className="h-4 w-4" />
+												Reject Payment
+											</button>
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+
+						<div className="flex justify-end border-t pt-4 mt-4">
+							<button
+								className="px-4 py-2 border rounded-md"
+								onClick={() => setIsRepaymentsModalOpen(false)}>
+								Close
+							</button>
 						</div>
 					</div>
 				)}

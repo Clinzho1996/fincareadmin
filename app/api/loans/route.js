@@ -5,24 +5,79 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // app/api/loans/route.js - Updated GET method
+// app/api/loans/route.js - Updated GET method with enhanced debugging
 export async function GET(request) {
 	try {
+		console.log("=== LOANS API CALLED ===");
+
 		const authResult = await authenticate(request);
 		if (authResult.error) {
+			console.log("Authentication failed:", authResult.error);
 			return NextResponse.json(
 				{ error: authResult.error },
 				{ status: authResult.status }
 			);
 		}
 
+		console.log("User authenticated successfully:");
+		console.log("User ID (ObjectId):", authResult.userId);
+		console.log("User ID (string):", authResult.userIdString);
+		console.log("User ID type:", typeof authResult.userId);
+		console.log("User ID constructor:", authResult.userId?.constructor?.name);
+
 		const { db } = await connectToDatabase();
-		const loans = await db
+
+		// Debug: Check ALL loans to see user ID formats
+		const allLoans = await db.collection("loans").find({}).toArray();
+		console.log("=== ALL LOANS IN DATABASE ===");
+		allLoans.forEach((loan, index) => {
+			console.log(`Loan ${index}:`, {
+				id: loan._id,
+				userId: loan.userId,
+				userIdType: typeof loan.userId,
+				userIdConstructor: loan.userId?.constructor?.name,
+				status: loan.status,
+				loanAmount: loan.loanAmount,
+			});
+		});
+
+		// Try different query approaches
+		console.log("=== QUERYING USER LOANS ===");
+
+		// Query 1: With ObjectId
+		const userLoansWithObjectId = await db
 			.collection("loans")
 			.find({ userId: authResult.userId })
 			.toArray();
+		console.log(
+			"Loans found with ObjectId query:",
+			userLoansWithObjectId.length
+		);
+
+		// Query 2: With string
+		const userLoansWithString = await db
+			.collection("loans")
+			.find({ userId: authResult.userIdString })
+			.toArray();
+		console.log("Loans found with string query:", userLoansWithString.length);
+
+		// Query 3: Try both
+		let userLoans;
+		if (userLoansWithObjectId.length > 0) {
+			userLoans = userLoansWithObjectId;
+			console.log("Using ObjectId query results");
+		} else if (userLoansWithString.length > 0) {
+			userLoans = userLoansWithString;
+			console.log("Using string query results");
+		} else {
+			userLoans = [];
+			console.log("No loans found with either query");
+		}
+
+		console.log("Final user loans count:", userLoans.length);
 
 		// Enhance loans with calculated details if missing or null
-		const enhancedLoans = loans.map((loan) => {
+		const enhancedLoans = userLoans.map((loan) => {
 			// Check if loan details are missing or have null values
 			if (
 				!loan.loanDetails ||
@@ -31,6 +86,7 @@ export async function GET(request) {
 				loan.loanDetails.monthlyInstallment === null ||
 				loan.loanDetails.remainingBalance === null
 			) {
+				console.log(`Enhancing loan ${loan._id} with calculated details`);
 				return {
 					...loan,
 					loanDetails: calculateCompleteLoanDetails(loan),
@@ -39,7 +95,21 @@ export async function GET(request) {
 			return loan;
 		});
 
-		return NextResponse.json({ loans: enhancedLoans });
+		console.log("Returning enhanced loans:", enhancedLoans.length);
+
+		return NextResponse.json({
+			loans: enhancedLoans,
+			debug: {
+				totalLoansInDB: allLoans.length,
+				userLoansFound: userLoans.length,
+				userIdObjectId: authResult.userId?.toString(),
+				userIdString: authResult.userIdString,
+				queryResults: {
+					objectIdQuery: userLoansWithObjectId.length,
+					stringQuery: userLoansWithString.length,
+				},
+			},
+		});
 	} catch (error) {
 		console.error("GET /api/loans error:", error);
 		return NextResponse.json(

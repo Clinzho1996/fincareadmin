@@ -188,6 +188,10 @@ body {
 	background-color: #0e5582;
 }
 
+.bg-red {
+	background-color: #f43f5e !important;
+}
+
 .status-inner.green {
 	background-color: #d1fae5; /* Tailwind bg-green-100 */
 	color: #047857;
