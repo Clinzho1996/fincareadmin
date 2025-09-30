@@ -1,4 +1,3 @@
-// app/api/loans/repayment/route.js
 export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
@@ -73,7 +72,12 @@ export async function POST(request) {
 			return NextResponse.json({ error: "Loan not found" }, { status: 404 });
 		}
 
-		if (loan.status !== "active" && loan.status !== "approved") {
+		// FIX: Allow payments for active loans without changing status
+		if (
+			loan.status !== "active" &&
+			loan.status !== "approved" &&
+			loan.status !== "payment_pending"
+		) {
 			return NextResponse.json(
 				{ error: "Only active or approved loans can receive payments" },
 				{ status: 400 }
@@ -105,12 +109,12 @@ export async function POST(request) {
 			.collection("loan_repayments")
 			.insertOne(repaymentData);
 
-		// Update loan status to indicate payment is pending review
+		// FIX: Don't change the loan status - keep it as "active"
+		// Only update the updatedAt timestamp
 		await db.collection("loans").updateOne(
 			{ _id: new ObjectId(loanId) },
 			{
 				$set: {
-					status: "payment_pending",
 					updatedAt: new Date(),
 				},
 			}
