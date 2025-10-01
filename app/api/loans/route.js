@@ -523,7 +523,7 @@ export async function POST(request) {
 }
 
 // Helper function to send guarantor invitation emails
-async function sendGuarantorInvitations(guarantors, loan, borrowerUserId) {
+async function sendGuarantorInvitations(guarantors, loan) {
 	try {
 		// This would integrate with your email service
 		// For now, we'll just log the invitations
