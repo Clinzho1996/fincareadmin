@@ -168,6 +168,7 @@ function calculateCompleteLoanDetails(loan) {
 }
 
 // app/api/loans/route.js - Updated POST method with optional fields
+// app/api/loans/route.js - Updated POST method that uses user data from database
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -181,16 +182,12 @@ export async function POST(request) {
 		const payload = await request.json();
 		console.log("Received loan payload:", JSON.stringify(payload, null, 2));
 
-		// Extract and transform fields with better validation
+		// Extract only the necessary fields from payload
 		const {
 			loanAmount,
 			purpose,
-			duration, // This might be "12 months" string
+			duration,
 			debitFromSavings,
-			fullName,
-			phone,
-			email,
-			gender,
 			guarantors,
 			governmentId,
 			governmentIdImage,
@@ -213,7 +210,6 @@ export async function POST(request) {
 				activeInvestments !== null
 			) {
 				// If it's a single object, wrap it in array
-				// Only include if it has valid data (not all undefined)
 				const hasValidData = Object.values(activeInvestments).some(
 					(value) => value !== undefined && value !== null && value !== ""
 				);
@@ -223,26 +219,39 @@ export async function POST(request) {
 			}
 		}
 
-		// Validate required fields
-		if (!loanAmount || !purpose || !fullName || !phone || !email || !gender) {
+		// Validate only the essential loan fields
+		if (!loanAmount || !purpose || !duration) {
 			console.log("Missing required fields:", {
 				loanAmount: !loanAmount,
 				purpose: !purpose,
-				fullName: !fullName,
-				phone: !phone,
-				email: !email,
-				gender: !gender,
+				duration: !duration,
 			});
 			return NextResponse.json(
 				{
-					error:
-						"Required fields are missing: loanAmount, purpose, fullName, phone, email, gender",
+					error: "Required fields are missing: loanAmount, purpose, duration",
 				},
 				{ status: 400 }
 			);
 		}
 
 		const { db } = await connectToDatabase();
+
+		// Get user details from database using the authenticated userId
+		const user = await db.collection("users").findOne({
+			_id: authResult.userId,
+		});
+
+		if (!user) {
+			return NextResponse.json({ error: "User not found" }, { status: 404 });
+		}
+
+		console.log("Found user:", {
+			id: user._id,
+			fullName: `${user.firstName} ${user.lastName}`,
+			email: user.email,
+			phone: user.phone,
+			gender: user.gender,
+		});
 
 		// Initialize guarantor details as empty array
 		let guarantorDetails = [];
@@ -407,6 +416,7 @@ export async function POST(request) {
 			loanDetails: { processingFeePaid: false },
 		});
 
+		// Create the loan with user details from database
 		const newLoan = {
 			userId: authResult.userId,
 			loanAmount: Number(loanAmount),
@@ -414,14 +424,14 @@ export async function POST(request) {
 			duration: durationMonths,
 			debitFromSavings: debitFromSavings || false,
 			borrowerDetails: {
-				fullName,
-				phone,
-				email,
-				gender,
+				fullName: `${user.firstName} ${user.lastName}`,
+				phone: user.phone || "",
+				email: user.email,
+				gender: user.gender || "prefer-not-to-say",
 			},
 			guarantorDetails: guarantorDetails,
-			governmentId: governmentId || governmentIdImage || "", // Handle both field names
-			activeInvestments: investmentsArray, // Use transformed array
+			governmentId: governmentId || governmentIdImage || "",
+			activeInvestments: investmentsArray,
 			status: "pending",
 			loanDetails: loanDetails,
 			createdAt: new Date(),
