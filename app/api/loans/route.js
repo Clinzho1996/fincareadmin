@@ -167,6 +167,7 @@ function calculateCompleteLoanDetails(loan) {
 	};
 }
 
+// app/api/loans/route.js - Updated POST method with optional fields
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -186,11 +187,12 @@ export async function POST(request) {
 			phone,
 			email,
 			gender,
-			guarantors, // Changed from guarantorCoverage/guarantorProfession to array of guarantors
+			guarantors, // Now optional - can be empty array or undefined
 			governmentId,
-			activeInvestments,
+			activeInvestments, // Now optional
 		} = await request.json();
 
+		// Remove guarantors and activeInvestments from required fields validation
 		if (
 			!loanAmount ||
 			!purpose ||
@@ -208,10 +210,11 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Validate guarantors if provided
+		// Initialize guarantor details as empty array
 		let guarantorDetails = [];
 		let totalGuarantorCoverage = 0;
 
+		// Process guarantors only if provided and not empty
 		if (guarantors && Array.isArray(guarantors) && guarantors.length > 0) {
 			console.log("Processing guarantors:", guarantors);
 
@@ -227,7 +230,8 @@ export async function POST(request) {
 			for (let i = 0; i < guarantors.length; i++) {
 				const guarantor = guarantors[i];
 
-				if (!guarantor.userId || !guarantor.coverage) {
+				// Check if guarantor has coverage (can be 0)
+				if (!guarantor.userId || guarantor.coverage === undefined) {
 					return NextResponse.json(
 						{
 							error: `Guarantor ${
@@ -238,14 +242,20 @@ export async function POST(request) {
 					);
 				}
 
-				// Validate coverage percentage
-				if (guarantor.coverage < 1 || guarantor.coverage > 100) {
+				// Allow coverage of 0 (no coverage) but validate range
+				if (guarantor.coverage < 0 || guarantor.coverage > 100) {
 					return NextResponse.json(
 						{
-							error: `Guarantor ${i + 1} coverage must be between 1% and 100%`,
+							error: `Guarantor ${i + 1} coverage must be between 0% and 100%`,
 						},
 						{ status: 400 }
 					);
+				}
+
+				// Skip processing if coverage is 0
+				if (guarantor.coverage === 0) {
+					console.log(`Skipping guarantor ${i + 1} with 0% coverage`);
+					continue;
 				}
 
 				// Check if guarantor user exists and is active
@@ -253,7 +263,7 @@ export async function POST(request) {
 				try {
 					guarantorUser = await db.collection("users").findOne({
 						_id: new ObjectId(guarantor.userId),
-						membershipStatus: { $in: ["approved", "active"] }, // Only active members can be guarantors
+						membershipStatus: { $in: ["approved", "active"] },
 					});
 				} catch (error) {
 					console.error("Error finding guarantor user:", error);
@@ -278,8 +288,7 @@ export async function POST(request) {
 					);
 				}
 
-				// Check if guarantor has sufficient savings/investments
-				// You can add more sophisticated eligibility criteria here
+				// Check if guarantor has sufficient savings/investments (only if coverage > 0)
 				const guarantorSavings = await db
 					.collection("savings")
 					.find({
@@ -295,8 +304,11 @@ export async function POST(request) {
 				const guarantorCoverageAmount =
 					(Number(loanAmount) * guarantor.coverage) / 100;
 
-				// Basic eligibility check - guarantor should have savings at least equal to their coverage amount
-				if (totalGuarantorSavings < guarantorCoverageAmount * 0.5) {
+				// Basic eligibility check - only if coverage is significant
+				if (
+					guarantor.coverage > 0 &&
+					totalGuarantorSavings < guarantorCoverageAmount * 0.5
+				) {
 					return NextResponse.json(
 						{
 							error: `Guarantor ${i + 1} (${guarantorUser.firstName} ${
@@ -320,28 +332,17 @@ export async function POST(request) {
 					coverageAmount: guarantorCoverageAmount,
 					savingsBalance: totalGuarantorSavings,
 					profession: guarantorUser.profession || "Not specified",
-					relationship: guarantor.relationship || "Colleague", // Optional field
-					approved: false, // Guarantor needs to approve the request
+					relationship: guarantor.relationship || "Colleague",
+					approved: guarantor.coverage === 0 ? true : false, // Auto-approve if coverage is 0
 					invitedAt: new Date(),
-					status: "pending", // pending, approved, rejected
+					status: guarantor.coverage === 0 ? "approved" : "pending", // Auto-approved if no coverage
 				});
 			}
 
-			// Validate total coverage
+			// Validate total coverage (only if there are guarantors with coverage > 0)
 			if (totalGuarantorCoverage > 200) {
 				return NextResponse.json(
 					{ error: "Total guarantor coverage cannot exceed 200%" },
-					{ status: 400 }
-				);
-			}
-
-			// Check if minimum coverage is met (optional business rule)
-			const minimumRequiredCoverage = 50; // 50% minimum total coverage
-			if (totalGuarantorCoverage < minimumRequiredCoverage) {
-				return NextResponse.json(
-					{
-						error: `Minimum total guarantor coverage of ${minimumRequiredCoverage}% is required. Current coverage: ${totalGuarantorCoverage}%`,
-					},
 					{ status: 400 }
 				);
 			}
@@ -452,7 +453,6 @@ export async function POST(request) {
 				},
 			]
 		);
-
 		// Use the same calculation as fallback function
 		const loanDetails = calculateLoanDetailsForUser({
 			loanAmount,
@@ -472,25 +472,32 @@ export async function POST(request) {
 				email,
 				gender,
 			},
-			guarantorDetails: guarantorDetails, // Now an array of guarantors
+			guarantorDetails: guarantorDetails, // Can be empty array
 			governmentId: governmentId || "",
-			activeInvestments: activeInvestments || [],
+			activeInvestments: activeInvestments || [], // Now optional, defaults to empty array
 			status: "pending",
 			loanDetails: loanDetails,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			payments: [],
 			guarantorStatus:
-				guarantors.length > 0 ? "pending_approval" : "not_required",
+				guarantorDetails.length > 0
+					? guarantorDetails.some((g) => g.coverage > 0 && !g.approved)
+						? "pending_approval"
+						: "approved"
+					: "not_required",
 			totalGuarantorCoverage: totalGuarantorCoverage,
 		};
 
 		const result = await db.collection("loans").insertOne(newLoan);
 
-		// Send notification emails to guarantors (in background)
-		if (guarantorDetails.length > 0) {
+		// Send notification emails only to guarantors with coverage > 0
+		const guarantorsNeedingApproval = guarantorDetails.filter(
+			(g) => g.coverage > 0
+		);
+		if (guarantorsNeedingApproval.length > 0) {
 			sendGuarantorInvitations(
-				guarantorDetails,
+				guarantorsNeedingApproval,
 				newLoan,
 				authResult.userId
 			).catch((error) => {
@@ -505,10 +512,12 @@ export async function POST(request) {
 				processingFee: loanDetails.processingFee.toFixed(2),
 				guarantorsRequired: guarantorDetails.length > 0,
 				totalGuarantorCoverage: totalGuarantorCoverage,
-				guarantorInvitationsSent: guarantorDetails.length,
+				guarantorInvitationsSent: guarantorsNeedingApproval.length,
 				nextSteps:
-					guarantorDetails.length > 0
+					guarantorsNeedingApproval.length > 0
 						? "Your guarantors have been notified and need to approve the request."
+						: guarantorDetails.length > 0
+						? "Guarantors added with 0% coverage (no approval required)."
 						: "No guarantors required for this application.",
 			},
 			{ status: 201 }
@@ -520,6 +529,34 @@ export async function POST(request) {
 			{ status: 500 }
 		);
 	}
+}
+
+// Helper function to calculate loan details (add this if missing)
+function calculateLoanDetailsForUser({ loanAmount, duration, loanDetails }) {
+	const LOAN_INTEREST_RATE = 0.1; // 10% annual interest
+	const LOAN_PROCESSING_FEE_RATE = 0.01; // 1% processing fee
+
+	const principalAmount = Number(loanAmount);
+	const loanDuration = Number(duration) || 12;
+
+	// Calculate loan details
+	const processingFee = principalAmount * LOAN_PROCESSING_FEE_RATE;
+	const interestAmount =
+		principalAmount * LOAN_INTEREST_RATE * (loanDuration / 12);
+	const totalLoanAmount = principalAmount + interestAmount;
+	const monthlyInstallment = totalLoanAmount / loanDuration;
+
+	return {
+		principalAmount: principalAmount,
+		processingFee: processingFee,
+		interestRate: LOAN_INTEREST_RATE,
+		interestAmount: interestAmount,
+		totalLoanAmount: totalLoanAmount,
+		monthlyInstallment: monthlyInstallment,
+		remainingBalance: totalLoanAmount,
+		paidAmount: 0,
+		processingFeePaid: loanDetails.processingFeePaid || false,
+	};
 }
 
 // Helper function to send guarantor invitation emails
