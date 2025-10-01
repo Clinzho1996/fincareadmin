@@ -194,8 +194,7 @@ export async function POST(request) {
 			guarantors,
 			governmentId,
 			governmentIdImage,
-			activeInvestments, // This might be an object instead of array
-			totalCoverage,
+			activeInvestments,
 		} = payload;
 
 		// Transform duration from "12 months" to number 12
