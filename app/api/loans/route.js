@@ -178,32 +178,67 @@ export async function POST(request) {
 			);
 		}
 
+		const payload = await request.json();
+		console.log("Received loan payload:", JSON.stringify(payload, null, 2));
+
+		// Extract and transform fields with better validation
 		const {
 			loanAmount,
 			purpose,
-			duration,
+			duration, // This might be "12 months" string
 			debitFromSavings,
 			fullName,
 			phone,
 			email,
 			gender,
-			guarantors, // Now optional - can be empty array or undefined
+			guarantors,
 			governmentId,
-			activeInvestments, // Now optional
-		} = await request.json();
+			governmentIdImage,
+			activeInvestments, // This might be an object instead of array
+			totalCoverage,
+		} = payload;
 
-		// Remove guarantors and activeInvestments from required fields validation
-		if (
-			!loanAmount ||
-			!purpose ||
-			!duration ||
-			!fullName ||
-			!phone ||
-			!email ||
-			!gender
-		) {
+		// Transform duration from "12 months" to number 12
+		const durationMonths =
+			typeof duration === "string"
+				? parseInt(duration.replace(/[^0-9]/g, "")) || 12
+				: Number(duration) || 12;
+
+		// Transform activeInvestments to always be an array
+		let investmentsArray = [];
+		if (activeInvestments) {
+			if (Array.isArray(activeInvestments)) {
+				investmentsArray = activeInvestments;
+			} else if (
+				typeof activeInvestments === "object" &&
+				activeInvestments !== null
+			) {
+				// If it's a single object, wrap it in array
+				// Only include if it has valid data (not all undefined)
+				const hasValidData = Object.values(activeInvestments).some(
+					(value) => value !== undefined && value !== null && value !== ""
+				);
+				if (hasValidData) {
+					investmentsArray = [activeInvestments];
+				}
+			}
+		}
+
+		// Validate required fields
+		if (!loanAmount || !purpose || !fullName || !phone || !email || !gender) {
+			console.log("Missing required fields:", {
+				loanAmount: !loanAmount,
+				purpose: !purpose,
+				fullName: !fullName,
+				phone: !phone,
+				email: !email,
+				gender: !gender,
+			});
 			return NextResponse.json(
-				{ error: "Required fields are missing" },
+				{
+					error:
+						"Required fields are missing: loanAmount, purpose, fullName, phone, email, gender",
+				},
 				{ status: 400 }
 			);
 		}
@@ -230,8 +265,9 @@ export async function POST(request) {
 			for (let i = 0; i < guarantors.length; i++) {
 				const guarantor = guarantors[i];
 
-				// Check if guarantor has coverage (can be 0)
+				// Check if guarantor has required fields
 				if (!guarantor.userId || guarantor.coverage === undefined) {
+					console.log(`Guarantor ${i + 1} missing required fields:`, guarantor);
 					return NextResponse.json(
 						{
 							error: `Guarantor ${
@@ -252,13 +288,30 @@ export async function POST(request) {
 					);
 				}
 
-				// Skip processing if coverage is 0
+				// Skip processing if coverage is 0 and we don't need to validate the user
 				if (guarantor.coverage === 0) {
-					console.log(`Skipping guarantor ${i + 1} with 0% coverage`);
+					console.log(
+						`Adding guarantor ${i + 1} with 0% coverage (no validation needed)`
+					);
+
+					guarantorDetails.push({
+						userId: new ObjectId(guarantor.userId),
+						fullName: guarantor.fullName || "Unknown",
+						email: guarantor.email || "",
+						phone: guarantor.phone || "",
+						coverage: 0,
+						coverageAmount: 0,
+						savingsBalance: guarantor.savingsBalance || 0,
+						profession: guarantor.profession || "Not specified",
+						relationship: guarantor.relationship || "Colleague",
+						approved: true, // Auto-approve if coverage is 0
+						invitedAt: new Date(),
+						status: "approved", // Auto-approved if no coverage
+					});
 					continue;
 				}
 
-				// Check if guarantor user exists and is active
+				// For coverage > 0, validate the guarantor user exists
 				let guarantorUser;
 				try {
 					guarantorUser = await db.collection("users").findOne({
@@ -333,9 +386,9 @@ export async function POST(request) {
 					savingsBalance: totalGuarantorSavings,
 					profession: guarantorUser.profession || "Not specified",
 					relationship: guarantor.relationship || "Colleague",
-					approved: guarantor.coverage === 0 ? true : false, // Auto-approve if coverage is 0
+					approved: false,
 					invitedAt: new Date(),
-					status: guarantor.coverage === 0 ? "approved" : "pending", // Auto-approved if no coverage
+					status: "pending",
 				});
 			}
 
@@ -348,115 +401,10 @@ export async function POST(request) {
 			}
 		}
 
-		// Fix loans with null duration and missing loan details (existing code)
-		await db.collection("loans").updateMany(
-			{
-				$or: [
-					{ duration: null },
-					{ "loanDetails.interestAmount": null },
-					{ "loanDetails.totalLoanAmount": null },
-					{ "loanDetails.monthlyInstallment": null },
-					{ "loanDetails.remainingBalance": null },
-				],
-			},
-			[
-				{
-					$set: {
-						duration: { $ifNull: ["$duration", 12] },
-						"loanDetails.principalAmount": {
-							$ifNull: ["$loanDetails.principalAmount", "$loanAmount"],
-						},
-						"loanDetails.processingFee": {
-							$ifNull: [
-								"$loanDetails.processingFee",
-								{ $multiply: ["$loanAmount", 0.01] },
-							],
-						},
-						"loanDetails.interestAmount": {
-							$ifNull: [
-								"$loanDetails.interestAmount",
-								{
-									$multiply: [
-										"$loanAmount",
-										0.1,
-										{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
-									],
-								},
-							],
-						},
-						"loanDetails.totalLoanAmount": {
-							$ifNull: [
-								"$loanDetails.totalLoanAmount",
-								{
-									$add: [
-										"$loanAmount",
-										{
-											$multiply: [
-												"$loanAmount",
-												0.1,
-												{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
-											],
-										},
-									],
-								},
-							],
-						},
-						"loanDetails.monthlyInstallment": {
-							$ifNull: [
-								"$loanDetails.monthlyInstallment",
-								{
-									$divide: [
-										{
-											$add: [
-												"$loanAmount",
-												{
-													$multiply: [
-														"$loanAmount",
-														0.1,
-														{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
-													],
-												},
-											],
-										},
-										{ $ifNull: ["$duration", 12] },
-									],
-								},
-							],
-						},
-						"loanDetails.remainingBalance": {
-							$ifNull: [
-								"$loanDetails.remainingBalance",
-								{
-									$add: [
-										"$loanAmount",
-										{
-											$multiply: [
-												"$loanAmount",
-												0.1,
-												{ $divide: [{ $ifNull: ["$duration", 12] }, 12] },
-											],
-										},
-									],
-								},
-							],
-						},
-						"loanDetails.paidAmount": {
-							$ifNull: ["$loanDetails.paidAmount", 0],
-						},
-						"loanDetails.interestRate": {
-							$ifNull: ["$loanDetails.interestRate", 0.1],
-						},
-						"loanDetails.processingFeePaid": {
-							$ifNull: ["$loanDetails.processingFeePaid", false],
-						},
-					},
-				},
-			]
-		);
-		// Use the same calculation as fallback function
+		// Calculate loan details
 		const loanDetails = calculateLoanDetailsForUser({
 			loanAmount,
-			duration,
+			duration: durationMonths,
 			loanDetails: { processingFeePaid: false },
 		});
 
@@ -464,7 +412,7 @@ export async function POST(request) {
 			userId: authResult.userId,
 			loanAmount: Number(loanAmount),
 			purpose,
-			duration: Number(duration) || 12,
+			duration: durationMonths,
 			debitFromSavings: debitFromSavings || false,
 			borrowerDetails: {
 				fullName,
@@ -472,9 +420,9 @@ export async function POST(request) {
 				email,
 				gender,
 			},
-			guarantorDetails: guarantorDetails, // Can be empty array
-			governmentId: governmentId || "",
-			activeInvestments: activeInvestments || [], // Now optional, defaults to empty array
+			guarantorDetails: guarantorDetails,
+			governmentId: governmentId || governmentIdImage || "", // Handle both field names
+			activeInvestments: investmentsArray, // Use transformed array
 			status: "pending",
 			loanDetails: loanDetails,
 			createdAt: new Date(),
@@ -489,6 +437,8 @@ export async function POST(request) {
 			totalGuarantorCoverage: totalGuarantorCoverage,
 		};
 
+		console.log("Creating new loan:", JSON.stringify(newLoan, null, 2));
+
 		const result = await db.collection("loans").insertOne(newLoan);
 
 		// Send notification emails only to guarantors with coverage > 0
@@ -496,13 +446,11 @@ export async function POST(request) {
 			(g) => g.coverage > 0
 		);
 		if (guarantorsNeedingApproval.length > 0) {
-			sendGuarantorInvitations(
-				guarantorsNeedingApproval,
-				newLoan,
-				authResult.userId
-			).catch((error) => {
-				console.error("Failed to send guarantor invitations:", error);
-			});
+			sendGuarantorInvitations(guarantorsNeedingApproval, newLoan).catch(
+				(error) => {
+					console.error("Failed to send guarantor invitations:", error);
+				}
+			);
 		}
 
 		return NextResponse.json(
