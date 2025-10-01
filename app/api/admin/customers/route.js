@@ -80,24 +80,72 @@ export async function GET(request) {
 		// Calculate additional stats for each user
 		const usersWithStats = await Promise.all(
 			users.map(async (user) => {
+				console.log(`=== CALCULATING STATS FOR USER: ${user._id} ===`);
+
+				// Try different user ID formats for querying
+				const userIdObjectId = user._id; // This is already an ObjectId
 				const userIdString = user._id.toString();
 
+				console.log("User ID formats:", {
+					objectId: userIdObjectId,
+					string: userIdString,
+				});
+
+				// Query savings
 				const savings = await db
 					.collection("savings")
-					.find({ userId: userIdString })
+					.find({
+						userId: {
+							$in: [userIdObjectId, userIdString],
+						},
+					})
 					.toArray();
+				console.log(`Found ${savings.length} savings accounts`);
+
+				// Query investments
 				const investments = await db
 					.collection("investments")
-					.find({ userId: userIdString })
+					.find({
+						userId: {
+							$in: [userIdObjectId, userIdString],
+						},
+					})
 					.toArray();
+				console.log(`Found ${investments.length} investments`);
+
+				// Query loans - FIXED: Check all loans
 				const loans = await db
 					.collection("loans")
-					.find({ userId: userIdString })
+					.find({
+						userId: {
+							$in: [userIdObjectId, userIdString],
+						},
+					})
 					.toArray();
+				console.log(`Found ${loans.length} total loans`);
+
+				// Debug loan details
+				loans.forEach((loan, index) => {
+					console.log(`Loan ${index}:`, {
+						id: loan._id,
+						status: loan.status,
+						amount: loan.loanAmount,
+						userId: loan.userId,
+						userIdType: typeof loan.userId,
+						userIdConstructor: loan.userId?.constructor?.name,
+					});
+				});
+
+				// Query auctions
 				const auctions = await db
 					.collection("auctions")
-					.find({ userId: userIdString })
+					.find({
+						userId: {
+							$in: [userIdObjectId, userIdString],
+						},
+					})
 					.toArray();
+				console.log(`Found ${auctions.length} auctions`);
 
 				// Calculate totals
 				const totalSavings = savings.reduce(
@@ -109,11 +157,20 @@ export async function GET(request) {
 					0
 				);
 
-				// Only count approved loans
-				const approvedLoans = loans.filter(
-					(loan) => loan.status === "approved"
+				// FIXED: Count loans that are considered "active" for business purposes
+				// These statuses should count toward the total loan amount
+				const activeLoanStatuses = [
+					"approved",
+					"active",
+					"payment_pending",
+					"completed",
+				];
+				const activeLoans = loans.filter((loan) =>
+					activeLoanStatuses.includes(loan.status)
 				);
-				const totalLoans = approvedLoans.reduce(
+
+				// FIXED: Use active loans for total amount calculation
+				const totalLoans = activeLoans.reduce(
 					(sum, l) => sum + Number(l.loanAmount || 0),
 					0
 				);
@@ -130,16 +187,27 @@ export async function GET(request) {
 						user.membershipStatus === "approved" ? "member" : "pending";
 				}
 
-				return {
-					...user,
+				console.log(`User ${user._id} stats:`, {
 					totalSavings,
 					totalInvestment,
 					totalLoans,
 					totalAuctions,
+					loansCount: loans.length,
+					activeLoansCount: activeLoans.length,
+					loanStatuses: loans.map((l) => l.status), // Log all statuses for debugging
+				});
+
+				return {
+					...user,
+					totalSavings,
+					totalInvestment,
+					totalLoans, // This will now show the sum of active/completed loans
+					totalAuctions,
 					isMember,
 					savingsCount: savings.length,
 					investmentsCount: investments.length,
-					loansCount: loans.length,
+					loansCount: loans.length, // Total loans count (all statuses)
+					activeLoansCount: activeLoans.length, // Only active status loans count
 					auctionsCount: auctions.length,
 				};
 			})
@@ -158,11 +226,13 @@ export async function GET(request) {
 	} catch (error) {
 		console.error("GET /api/admin/customers error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error: " + error.message },
 			{ status: 500 }
 		);
 	}
 }
+
+// ... rest of your POST function remains the same ...
 
 export async function POST(request) {
 	try {

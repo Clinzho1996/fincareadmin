@@ -186,8 +186,7 @@ export async function POST(request) {
 			phone,
 			email,
 			gender,
-			guarantorCoverage,
-			guarantorProfession,
+			guarantors, // Changed from guarantorCoverage/guarantorProfession to array of guarantors
 			governmentId,
 			activeInvestments,
 		} = await request.json();
@@ -208,8 +207,148 @@ export async function POST(request) {
 		}
 
 		const { db } = await connectToDatabase();
-		// Fix loans with null duration and missing loan details
-		db.loans.updateMany(
+
+		// Validate guarantors if provided
+		let guarantorDetails = [];
+		let totalGuarantorCoverage = 0;
+
+		if (guarantors && Array.isArray(guarantors) && guarantors.length > 0) {
+			console.log("Processing guarantors:", guarantors);
+
+			// Validate maximum number of guarantors
+			if (guarantors.length > 5) {
+				return NextResponse.json(
+					{ error: "Maximum of 5 guarantors allowed" },
+					{ status: 400 }
+				);
+			}
+
+			// Process each guarantor
+			for (let i = 0; i < guarantors.length; i++) {
+				const guarantor = guarantors[i];
+
+				if (!guarantor.userId || !guarantor.coverage) {
+					return NextResponse.json(
+						{
+							error: `Guarantor ${
+								i + 1
+							} is missing required fields (userId and coverage)`,
+						},
+						{ status: 400 }
+					);
+				}
+
+				// Validate coverage percentage
+				if (guarantor.coverage < 1 || guarantor.coverage > 100) {
+					return NextResponse.json(
+						{
+							error: `Guarantor ${i + 1} coverage must be between 1% and 100%`,
+						},
+						{ status: 400 }
+					);
+				}
+
+				// Check if guarantor user exists and is active
+				let guarantorUser;
+				try {
+					guarantorUser = await db.collection("users").findOne({
+						_id: new ObjectId(guarantor.userId),
+						membershipStatus: { $in: ["approved", "active"] }, // Only active members can be guarantors
+					});
+				} catch (error) {
+					console.error("Error finding guarantor user:", error);
+					return NextResponse.json(
+						{ error: `Invalid guarantor ${i + 1} user ID` },
+						{ status: 400 }
+					);
+				}
+
+				if (!guarantorUser) {
+					return NextResponse.json(
+						{ error: `Guarantor ${i + 1} not found or not an active member` },
+						{ status: 400 }
+					);
+				}
+
+				// Check if user is trying to be their own guarantor
+				if (guarantor.userId === authResult.userId.toString()) {
+					return NextResponse.json(
+						{ error: "You cannot be your own guarantor" },
+						{ status: 400 }
+					);
+				}
+
+				// Check if guarantor has sufficient savings/investments
+				// You can add more sophisticated eligibility criteria here
+				const guarantorSavings = await db
+					.collection("savings")
+					.find({
+						userId: guarantor.userId,
+					})
+					.toArray();
+
+				const totalGuarantorSavings = guarantorSavings.reduce(
+					(sum, saving) => sum + Number(saving.currentBalance || 0),
+					0
+				);
+
+				const guarantorCoverageAmount =
+					(Number(loanAmount) * guarantor.coverage) / 100;
+
+				// Basic eligibility check - guarantor should have savings at least equal to their coverage amount
+				if (totalGuarantorSavings < guarantorCoverageAmount * 0.5) {
+					return NextResponse.json(
+						{
+							error: `Guarantor ${i + 1} (${guarantorUser.firstName} ${
+								guarantorUser.lastName
+							}) does not meet the minimum savings requirement for the requested coverage`,
+						},
+						{ status: 400 }
+					);
+				}
+
+				// Add to total coverage
+				totalGuarantorCoverage += Number(guarantor.coverage);
+
+				// Create guarantor detail object
+				guarantorDetails.push({
+					userId: new ObjectId(guarantor.userId),
+					fullName: `${guarantorUser.firstName} ${guarantorUser.lastName}`,
+					email: guarantorUser.email,
+					phone: guarantorUser.phone,
+					coverage: Number(guarantor.coverage),
+					coverageAmount: guarantorCoverageAmount,
+					savingsBalance: totalGuarantorSavings,
+					profession: guarantorUser.profession || "Not specified",
+					relationship: guarantor.relationship || "Colleague", // Optional field
+					approved: false, // Guarantor needs to approve the request
+					invitedAt: new Date(),
+					status: "pending", // pending, approved, rejected
+				});
+			}
+
+			// Validate total coverage
+			if (totalGuarantorCoverage > 200) {
+				return NextResponse.json(
+					{ error: "Total guarantor coverage cannot exceed 200%" },
+					{ status: 400 }
+				);
+			}
+
+			// Check if minimum coverage is met (optional business rule)
+			const minimumRequiredCoverage = 50; // 50% minimum total coverage
+			if (totalGuarantorCoverage < minimumRequiredCoverage) {
+				return NextResponse.json(
+					{
+						error: `Minimum total guarantor coverage of ${minimumRequiredCoverage}% is required. Current coverage: ${totalGuarantorCoverage}%`,
+					},
+					{ status: 400 }
+				);
+			}
+		}
+
+		// Fix loans with null duration and missing loan details (existing code)
+		await db.collection("loans").updateMany(
 			{
 				$or: [
 					{ duration: null },
@@ -333,10 +472,7 @@ export async function POST(request) {
 				email,
 				gender,
 			},
-			guarantorDetails: {
-				coverage: Number(guarantorCoverage) || 0,
-				profession: guarantorProfession || "",
-			},
+			guarantorDetails: guarantorDetails, // Now an array of guarantors
 			governmentId: governmentId || "",
 			activeInvestments: activeInvestments || [],
 			status: "pending",
@@ -344,24 +480,73 @@ export async function POST(request) {
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			payments: [],
+			guarantorStatus:
+				guarantors.length > 0 ? "pending_approval" : "not_required",
+			totalGuarantorCoverage: totalGuarantorCoverage,
 		};
 
 		const result = await db.collection("loans").insertOne(newLoan);
+
+		// Send notification emails to guarantors (in background)
+		if (guarantorDetails.length > 0) {
+			sendGuarantorInvitations(
+				guarantorDetails,
+				newLoan,
+				authResult.userId
+			).catch((error) => {
+				console.error("Failed to send guarantor invitations:", error);
+			});
+		}
 
 		return NextResponse.json(
 			{
 				message: "Loan application submitted successfully",
 				loanId: result.insertedId,
-				processingFee: processingFee.toFixed(2),
+				processingFee: loanDetails.processingFee.toFixed(2),
+				guarantorsRequired: guarantorDetails.length > 0,
+				totalGuarantorCoverage: totalGuarantorCoverage,
+				guarantorInvitationsSent: guarantorDetails.length,
+				nextSteps:
+					guarantorDetails.length > 0
+						? "Your guarantors have been notified and need to approve the request."
+						: "No guarantors required for this application.",
 			},
 			{ status: 201 }
 		);
 	} catch (error) {
 		console.error("POST /api/loans error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error: " + error.message },
 			{ status: 500 }
 		);
+	}
+}
+
+// Helper function to send guarantor invitation emails
+async function sendGuarantorInvitations(guarantors, loan, borrowerUserId) {
+	try {
+		// This would integrate with your email service
+		// For now, we'll just log the invitations
+		console.log("Sending guarantor invitations:", {
+			loanId: loan._id,
+			loanAmount: loan.loanAmount,
+			borrower: loan.borrowerDetails.fullName,
+			guarantors: guarantors.map((g) => ({
+				name: g.fullName,
+				email: g.email,
+				coverage: g.coverage,
+			})),
+		});
+
+		// In a real implementation, you would:
+		// 1. Send emails to each guarantor with an approval link
+		// 2. Create notifications in the database
+		// 3. Possibly send SMS notifications
+
+		return true;
+	} catch (error) {
+		console.error("Error sending guarantor invitations:", error);
+		return false;
 	}
 }
 

@@ -98,20 +98,33 @@ const AdminLoansDashboard = () => {
 		}
 	};
 
+	// In your admin dashboard component
 	const fetchPendingRepayments = async (loanId) => {
 		try {
+			console.log("Fetching pending repayments for loan:", loanId);
+
 			const response = await fetch(
-				`/api/admin/loans/repayments?loanId=${loanId}&status=pending_review`
+				`/api/admin/loans/repayments?status=pending_review${
+					loanId ? `&loanId=${loanId}` : ""
+				}`
 			);
+
 			if (!response.ok) {
 				throw new Error("Failed to fetch pending repayments");
 			}
+
 			const data = await response.json();
-			setPendingRepayments(data.repayments || []);
-			setIsRepaymentsModalOpen(true);
+			console.log("Admin repayments response:", data);
+
+			if (data.status === "success") {
+				setPendingRepayments(data.repayments || []);
+				setIsRepaymentsModalOpen(true);
+			} else {
+				throw new Error(data.error || "Failed to fetch repayments");
+			}
 		} catch (error) {
 			console.error("Error fetching repayments:", error);
-			alert("Failed to fetch pending repayments");
+			alert("Failed to fetch pending repayments: " + error.message);
 		}
 	};
 
