@@ -1,86 +1,8 @@
-// app/api/auctions/[id]/bids/route.js
+// app/api/auctions/[id]/bids/route.js - Fixed version
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
-
-// GET - Get all bids for a specific auction
-export async function GET(request, { params }) {
-	try {
-		const authResult = await authenticate(request);
-		if (authResult.error) {
-			return NextResponse.json(
-				{ error: authResult.error },
-				{ status: authResult.status }
-			);
-		}
-
-		const { id } = params;
-
-		if (!ObjectId.isValid(id)) {
-			return NextResponse.json(
-				{ error: "Invalid auction ID" },
-				{ status: 400 }
-			);
-		}
-
-		const { db } = await connectToDatabase();
-
-		// Check if auction exists
-		const auction = await db.collection("auctions").findOne({
-			_id: new ObjectId(id),
-		});
-
-		if (!auction) {
-			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
-		}
-
-		// Get all bids for this auction with user information
-		const bids = await db
-			.collection("bids")
-			.aggregate([
-				{ $match: { auctionId: new ObjectId(id) } },
-				{ $sort: { amount: -1, createdAt: -1 } },
-				{
-					$lookup: {
-						from: "users",
-						localField: "userId",
-						foreignField: "_id",
-						as: "user",
-					},
-				},
-				{
-					$project: {
-						amount: 1,
-						status: 1,
-						createdAt: 1,
-						"user.firstName": 1,
-						"user.lastName": 1,
-						"user.email": 1,
-					},
-				},
-			])
-			.toArray();
-
-		return NextResponse.json({
-			auction: {
-				_id: auction._id,
-				auctionName: auction.auctionName,
-				reservePrice: auction.reservePrice,
-				currentBid: auction.currentBid,
-				status: auction.status,
-				endDate: auction.endDate,
-			},
-			bids,
-		});
-	} catch (error) {
-		console.error("GET /api/auctions/[id]/bids error:", error);
-		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
-		);
-	}
-}
 
 // POST - Place a new bid on an auction
 export async function POST(request, { params }) {
@@ -93,33 +15,12 @@ export async function POST(request, { params }) {
 			);
 		}
 
-		// Extract userId from the token directly since authResult doesn't contain it
-		const authHeader = request.headers.get("authorization");
-		if (!authHeader || !authHeader.startsWith("Bearer ")) {
-			return NextResponse.json(
-				{ error: "Authorization header missing or invalid" },
-				{ status: 401 }
-			);
-		}
-
-		const token = authHeader.replace("Bearer ", "");
-		let userId;
-
-		try {
-			// Decode the JWT token to get the userId
-			const payload = JSON.parse(
-				Buffer.from(token.split(".")[1], "base64").toString()
-			);
-			userId = payload.userId;
-			console.log("Token successfully decoded, userId:", userId);
-		} catch (e) {
-			console.error("Failed to decode token:", e);
-			return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-		}
+		// Use the userId from authResult instead of manual token decoding
+		const userId = authResult.userId;
 
 		if (!userId) {
 			return NextResponse.json(
-				{ error: "User authentication failed - no user ID found in token" },
+				{ error: "User authentication failed - no user ID found" },
 				{ status: 401 }
 			);
 		}
@@ -154,24 +55,23 @@ export async function POST(request, { params }) {
 			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
 		}
 
-		// Check if auction has a userId and it's valid - FIXED: Added proper null check
+		// Check if auction has a userId - if not, it might be an admin-created auction
+		// Remove the strict check since some auctions might not have userId
 		if (!auction.userId) {
-			return NextResponse.json(
-				{ error: "Invalid auction owner information" },
-				{ status: 400 }
-			);
-		}
+			console.log("Auction has no userId, allowing bid placement");
+			// Continue with bid placement instead of returning error
+		} else {
+			// Convert both IDs to string for safe comparison
+			const auctionUserIdStr = auction.userId.toString();
+			const authUserIdStr = userId.toString();
 
-		// Convert both IDs to string for safe comparison - FIXED: Added proper toString checks
-		const auctionUserIdStr = auction.userId.toString();
-		const authUserIdStr = userId.toString();
-
-		// Cannot bid on your own auction
-		if (auctionUserIdStr === authUserIdStr) {
-			return NextResponse.json(
-				{ error: "Cannot bid on your own auction" },
-				{ status: 400 }
-			);
+			// Cannot bid on your own auction
+			if (auctionUserIdStr === authUserIdStr) {
+				return NextResponse.json(
+					{ error: "Cannot bid on your own auction" },
+					{ status: 400 }
+				);
+			}
 		}
 
 		// Check if auction is active
@@ -202,17 +102,25 @@ export async function POST(request, { params }) {
 			}
 
 			// Calculate amount based on percentage of total investment value
-			if (!auction.totalInvestmentValue || auction.totalInvestmentValue <= 0) {
+			// If no totalInvestmentValue, use current bid or starting price as fallback
+			const baseAmount =
+				auction.totalInvestmentValue ||
+				auction.currentBid ||
+				auction.startingPrice ||
+				auction.reservePrice ||
+				0;
+
+			if (baseAmount <= 0) {
 				return NextResponse.json(
 					{
 						error:
-							"Auction does not have a valid total investment value for percentage bidding",
+							"Auction does not have a valid base amount for percentage bidding",
 					},
 					{ status: 400 }
 				);
 			}
 
-			finalAmount = (percentage / 100) * auction.totalInvestmentValue;
+			finalAmount = (percentage / 100) * baseAmount;
 		} else {
 			// Validate absolute amount
 			if (!amount || amount <= 0) {
@@ -224,12 +132,12 @@ export async function POST(request, { params }) {
 		}
 
 		// Check if bid meets reserve price
-		if (finalAmount < auction.reservePrice) {
+		if (finalAmount < (auction.reservePrice || 0)) {
 			return NextResponse.json(
 				{
-					error: `Bid must meet or exceed reserve price of ₦${
-						auction.reservePrice?.toLocaleString() || "0"
-					}`,
+					error: `Bid must meet or exceed reserve price of ₦${(
+						auction.reservePrice || 0
+					).toLocaleString()}`,
 				},
 				{ status: 400 }
 			);
@@ -318,18 +226,11 @@ export async function POST(request, { params }) {
 			}
 		);
 
-		// If this is the first bid, notify the auction owner
+		// If this is the first bid, log it (remove owner notification if no userId)
 		if ((auction.currentBid || 0) === 0) {
-			const auctionOwner = await db
-				.collection("users")
-				.findOne({ _id: auction.userId });
-
-			if (auctionOwner) {
-				console.log(
-					`Auction "${auction.auctionName}" has received its first bid of ${finalAmount}`
-				);
-				// In a real app, send notification/email to auctionOwner.email
-			}
+			console.log(
+				`Auction "${auction.auctionName}" has received its first bid of ${finalAmount}`
+			);
 		}
 
 		return NextResponse.json(
