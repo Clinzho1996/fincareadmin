@@ -1,19 +1,22 @@
 // app/api/user/auctions/[id]/stats/route.js
+import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 export async function GET(request, { params }) {
 	try {
-		const session = await getServerSession();
-		if (!session?.user?.id) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
 		}
 
 		const { id } = params;
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(session.user.id);
+		const userId = new ObjectId(authResult.userId);
 
 		// Get total bids
 		const totalBids = await db
