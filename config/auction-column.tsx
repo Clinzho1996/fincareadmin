@@ -31,6 +31,8 @@ import { AuctionDataTable } from "./auction-table";
 // This type is used to define the shape of our data.
 export type Auction = {
 	_id: string;
+	title: string;
+	description: string;
 	auctionName: string;
 	investmentName: string;
 	reservePrice: number;
@@ -168,7 +170,7 @@ const AuctionTable = () => {
 				const auction = row.original;
 				return (
 					<span className="text-xs text-black t-data">
-						{auction.auctionName}
+						{auction.auctionName || auction.title}
 					</span>
 				);
 			},
@@ -178,9 +180,10 @@ const AuctionTable = () => {
 			header: "Investment",
 			cell: ({ row }) => {
 				const investment = row.original.investmentName;
+				const auction = row.original;
 				return (
 					<span className="text-xs text-primary-6 capitalize">
-						{investment}
+						{investment} {auction.description && `- ${auction.description}`}
 					</span>
 				);
 			},
