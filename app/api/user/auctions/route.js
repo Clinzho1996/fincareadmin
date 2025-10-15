@@ -5,7 +5,8 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // Helper function to accept a bid
-async function acceptBid(db, auctionId, bidId) {
+// Updated acceptBid function in your backend
+async function acceptBid(db, auctionId, bidId, userId) {
 	try {
 		const auctionObjectId = new ObjectId(auctionId);
 		const bidObjectId = new ObjectId(bidId);
@@ -19,6 +20,23 @@ async function acceptBid(db, auctionId, bidId) {
 		if (!bid) {
 			return NextResponse.json({ error: "Bid not found" }, { status: 404 });
 		}
+
+		// Get the winning bidder's details
+		const winningBidder = await db.collection("users").findOne({
+			_id: bid.userId,
+		});
+
+		if (!winningBidder) {
+			return NextResponse.json(
+				{ error: "Winning bidder not found" },
+				{ status: 404 }
+			);
+		}
+
+		// Get the auction details
+		const auction = await db.collection("user_auctions").findOne({
+			_id: auctionObjectId,
+		});
 
 		// Update the bid status to accepted
 		await db.collection("bids").updateOne(
@@ -45,7 +63,29 @@ async function acceptBid(db, auctionId, bidId) {
 			}
 		);
 
-		// Close the auction
+		// TRANSFER THE AUCTION TO THE WINNING BIDDER
+		// Create a new record in the winner's account
+		const wonAuction = {
+			originalAuctionId: auctionObjectId,
+			title: auction.title,
+			description: auction.description,
+			category: auction.category,
+			winningBidAmount: bid.amount,
+			previousOwnerId: auction.ownerId,
+			newOwnerId: bid.userId,
+			status: "won", // This indicates it's a won auction
+			itemCondition: auction.itemCondition,
+			certificateDetails: auction.certificateDetails,
+			images: auction.images || [],
+			acceptedAt: new Date(),
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
+
+		// Insert the won auction into user_won_auctions collection
+		await db.collection("user_won_auctions").insertOne(wonAuction);
+
+		// Close the original auction
 		await db.collection("user_auctions").updateOne(
 			{ _id: auctionObjectId },
 			{
@@ -54,21 +94,54 @@ async function acceptBid(db, auctionId, bidId) {
 					winningBidId: bidObjectId,
 					winningBidAmount: bid.amount,
 					winnerId: bid.userId,
+					transferredAt: new Date(),
 					updatedAt: new Date(),
 				},
 			}
 		);
 
-		// Notify the winning bidder (in a real app, you might send an email/push notification)
-		console.log(`Bid accepted: ${bidId} for auction: ${auctionId}`);
+		// Create a notification for the winner
+		const winnerNotification = {
+			userId: bid.userId,
+			type: "auction_won",
+			title: "Auction Won!",
+			message: `Congratulations! You won the auction "${
+				auction.title
+			}" with a bid of ₦${bid.amount.toLocaleString()}`,
+			relatedAuctionId: auctionObjectId,
+			isRead: false,
+			createdAt: new Date(),
+		};
+
+		await db.collection("notifications").insertOne(winnerNotification);
+
+		// Create a notification for the seller
+		const sellerNotification = {
+			userId: auction.ownerId,
+			type: "auction_sold",
+			title: "Auction Completed",
+			message: `Your auction "${auction.title}" has been sold to ${
+				winningBidder.firstName
+			} ${winningBidder.lastName} for ₦${bid.amount.toLocaleString()}`,
+			relatedAuctionId: auctionObjectId,
+			isRead: false,
+			createdAt: new Date(),
+		};
+
+		await db.collection("notifications").insertOne(sellerNotification);
+
+		console.log(`Auction transferred: ${auctionId} to user: ${bid.userId}`);
 
 		return NextResponse.json({
-			message: "Bid accepted successfully! Auction is now closed.",
+			message:
+				"Bid accepted successfully! Auction has been transferred to the winner.",
 			winningBid: {
 				bidId: bid._id,
 				amount: bid.amount,
 				bidderId: bid.userId,
+				bidderName: `${winningBidder.firstName} ${winningBidder.lastName}`,
 			},
+			transferred: true,
 		});
 	} catch (error) {
 		console.error("Error accepting bid:", error);
