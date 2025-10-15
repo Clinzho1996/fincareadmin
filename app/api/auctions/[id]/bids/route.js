@@ -205,6 +205,9 @@ export async function POST(request, { params }) {
 		let finalAmount = amount;
 
 		// Handle percentage-based bidding
+		// In your backend API (both admin and user endpoints), update the percentage logic:
+
+		// Handle percentage-based bidding
 		if (bidType === "percentage") {
 			if (!percentage || percentage <= 0 || percentage > 100) {
 				return NextResponse.json(
@@ -216,31 +219,56 @@ export async function POST(request, { params }) {
 				);
 			}
 
-			// Calculate amount based on percentage of total investment value
-			// If no totalInvestmentValue, use current bid or starting price as fallback
-			const baseAmount =
-				auction.totalInvestmentValue ||
-				auction.currentBid ||
-				auction.startingPrice ||
-				auction.reservePrice ||
-				0;
+			let baseAmount = 0;
+
+			// Determine base amount for percentage calculation
+			if (auction.totalInvestmentValue) {
+				// For investment auctions: percentage of total investment
+				baseAmount = auction.totalInvestmentValue;
+			} else if (auction.startingPrice) {
+				// For regular auctions: percentage of starting price
+				baseAmount = auction.startingPrice;
+			} else {
+				// Fallback: use current bid
+				baseAmount = auction.currentBid || auction.reservePrice || 0;
+			}
 
 			if (baseAmount <= 0) {
 				return NextResponse.json(
 					{
 						error:
-							"Auction does not have a valid base amount for percentage bidding",
+							"Cannot calculate percentage bid - no valid base amount available",
 					},
 					{ status: 400 }
 				);
 			}
 
 			finalAmount = (percentage / 100) * baseAmount;
-		} else {
-			// Validate absolute amount
-			if (!amount || amount <= 0) {
+
+			console.log("Percentage bid processed:", {
+				percentage: percentage,
+				baseAmount: baseAmount,
+				calculatedAmount: finalAmount,
+				auctionId: auction._id,
+			});
+		}
+
+		// For percentage bids, we don't enforce the minimum bid increment
+		// because different users can bid different percentages
+		if (bidType === "absolute") {
+			// Only check minimum increment for absolute bids
+			const minBidIncrement = auction.minBidIncrement || 5;
+			const minBidAmount =
+				(auction.currentBid || 0) * (1 + minBidIncrement / 100);
+
+			if (finalAmount < minBidAmount) {
 				return NextResponse.json(
-					{ error: "Valid bid amount is required" },
+					{
+						error: `Bid must be at least ₦${minBidAmount.toFixed(
+							2
+						)} (${minBidIncrement}% increase)`,
+						minBidAmount,
+					},
 					{ status: 400 }
 				);
 			}

@@ -53,6 +53,9 @@ export async function POST(request) {
 		let finalAmount = amount;
 
 		// Handle percentage-based bidding for user auctions
+		// In your backend API (both admin and user endpoints), update the percentage logic:
+
+		// Handle percentage-based bidding
 		if (bidType === "percentage") {
 			if (!percentage || percentage <= 0 || percentage > 100) {
 				return NextResponse.json(
@@ -64,22 +67,60 @@ export async function POST(request) {
 				);
 			}
 
-			// For user auctions, use current bid or starting price as base
-			const baseAmount = auction.currentBid || auction.startingPrice || 0;
+			let baseAmount = 0;
+
+			// Determine base amount for percentage calculation
+			if (auction.totalInvestmentValue) {
+				// For investment auctions: percentage of total investment
+				baseAmount = auction.totalInvestmentValue;
+			} else if (auction.startingPrice) {
+				// For regular auctions: percentage of starting price
+				baseAmount = auction.startingPrice;
+			} else {
+				// Fallback: use current bid
+				baseAmount = auction.currentBid || auction.reservePrice || 0;
+			}
 
 			if (baseAmount <= 0) {
 				return NextResponse.json(
 					{
 						error:
-							"Auction does not have a valid base amount for percentage bidding",
+							"Cannot calculate percentage bid - no valid base amount available",
 					},
 					{ status: 400 }
 				);
 			}
 
 			finalAmount = (percentage / 100) * baseAmount;
+
+			console.log("Percentage bid processed:", {
+				percentage: percentage,
+				baseAmount: baseAmount,
+				calculatedAmount: finalAmount,
+				auctionId: auction._id,
+			});
 		}
 
+		// For percentage bids, we don't enforce the minimum bid increment
+		// because different users can bid different percentages
+		if (bidType === "absolute") {
+			// Only check minimum increment for absolute bids
+			const minBidIncrement = auction.minBidIncrement || 5;
+			const minBidAmount =
+				(auction.currentBid || 0) * (1 + minBidIncrement / 100);
+
+			if (finalAmount < minBidAmount) {
+				return NextResponse.json(
+					{
+						error: `Bid must be at least ₦${minBidAmount.toFixed(
+							2
+						)} (${minBidIncrement}% increase)`,
+						minBidAmount,
+					},
+					{ status: 400 }
+				);
+			}
+		}
 		// Calculate minimum bid amount for user auctions
 		const minBidIncrement = auction.minBidIncrement || 5;
 		const minBidAmount =
