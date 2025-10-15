@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 
 // Helper function to accept a bid
 // Updated acceptBid function in your backend
-async function acceptBid(db, auctionId, bidId, userId) {
+async function acceptBid(db, auctionId, bidId) {
 	try {
 		const auctionObjectId = new ObjectId(auctionId);
 		const bidObjectId = new ObjectId(bidId);
