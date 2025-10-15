@@ -4,6 +4,246 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
+// Helper function to accept a bid for admin auctions
+async function acceptBid(db, auctionId, bidId, userId) {
+	try {
+		const auctionObjectId = new ObjectId(auctionId);
+		const bidObjectId = new ObjectId(bidId);
+
+		// Get the bid details
+		const bid = await db.collection("bids").findOne({
+			_id: bidObjectId,
+			auctionId: auctionObjectId,
+		});
+
+		if (!bid) {
+			return NextResponse.json({ error: "Bid not found" }, { status: 404 });
+		}
+
+		// Get the winning bidder's details
+		const winningBidder = await db.collection("users").findOne({
+			_id: bid.userId,
+		});
+
+		if (!winningBidder) {
+			return NextResponse.json(
+				{ error: "Winning bidder not found" },
+				{ status: 404 }
+			);
+		}
+
+		// Get the auction details
+		const auction = await db.collection("auctions").findOne({
+			_id: auctionObjectId,
+		});
+
+		if (!auction) {
+			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
+		}
+
+		// Update the bid status to accepted
+		await db.collection("bids").updateOne(
+			{ _id: bidObjectId },
+			{
+				$set: {
+					status: "accepted",
+					updatedAt: new Date(),
+				},
+			}
+		);
+
+		// Update all other bids for this auction to rejected
+		await db.collection("bids").updateMany(
+			{
+				auctionId: auctionObjectId,
+				_id: { $ne: bidObjectId },
+			},
+			{
+				$set: {
+					status: "rejected",
+					updatedAt: new Date(),
+				},
+			}
+		);
+
+		// TRANSFER THE INVESTMENT TO THE WINNING BIDDER
+		// Create a new investment record for the winner
+		const wonInvestment = {
+			originalAuctionId: auctionObjectId,
+			investmentName: auction.investmentName,
+			description: auction.description,
+			totalInvestmentValue: auction.totalInvestmentValue,
+			winningBidAmount: bid.amount,
+			unitPrice: auction.unitPrice,
+			interestRate: auction.interestRate,
+			maturityDate: auction.maturityDate,
+			certificateDetails: auction.certificateDetails,
+			image: auction.image,
+			status: "active", // The investment is now active for the winner
+			previousOwner: "admin", // Indicates it came from an admin auction
+			newOwnerId: bid.userId,
+			acceptedAt: new Date(),
+			ownershipTransferredAt: new Date(),
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
+
+		// Insert the won investment into user_investments collection
+		await db.collection("user_investments").insertOne(wonInvestment);
+
+		// Close the original auction
+		await db.collection("auctions").updateOne(
+			{ _id: auctionObjectId },
+			{
+				$set: {
+					status: "completed",
+					winningBidId: bidObjectId,
+					winningBidAmount: bid.amount,
+					winnerId: bid.userId,
+					ownershipTransferredAt: new Date(),
+					updatedAt: new Date(),
+				},
+			}
+		);
+
+		// Update the admin_investments collection to mark as sold
+		if (auction.investmentId) {
+			await db.collection("admin_investments").updateOne(
+				{ _id: auction.investmentId },
+				{
+					$set: {
+						status: "sold",
+						soldTo: bid.userId,
+						soldAt: new Date(),
+						soldAmount: bid.amount,
+						updatedAt: new Date(),
+					},
+				}
+			);
+		}
+
+		// Create a notification for the winner
+		const winnerNotification = {
+			userId: bid.userId,
+			type: "investment_won",
+			title: "Investment Won!",
+			message: `Congratulations! You won the investment "${
+				auction.investmentName
+			}" with a bid of ₦${bid.amount.toLocaleString()}. The investment has been added to your portfolio.`,
+			relatedAuctionId: auctionObjectId,
+			isRead: false,
+			createdAt: new Date(),
+		};
+
+		await db.collection("notifications").insertOne(winnerNotification);
+
+		// Create admin notification for the sale
+		const adminNotification = {
+			userId: new ObjectId(userId), // The admin who accepted the bid
+			type: "investment_sold",
+			title: "Investment Sold",
+			message: `Investment "${auction.investmentName}" has been sold to ${
+				winningBidder.firstName
+			} ${winningBidder.lastName} for ₦${bid.amount.toLocaleString()}`,
+			relatedAuctionId: auctionObjectId,
+			isRead: false,
+			createdAt: new Date(),
+		};
+
+		await db.collection("notifications").insertOne(adminNotification);
+
+		console.log(
+			`Admin auction completed: ${auctionId} transferred to user: ${bid.userId}`
+		);
+
+		return NextResponse.json({
+			message:
+				"Bid accepted successfully! Investment has been transferred to the winner.",
+			winningBid: {
+				bidId: bid._id,
+				amount: bid.amount,
+				bidderId: bid.userId,
+				bidderName: `${winningBidder.firstName} ${winningBidder.lastName}`,
+				bidderEmail: winningBidder.email,
+			},
+			investment: {
+				name: auction.investmentName,
+				value: auction.totalInvestmentValue,
+				transferred: true,
+			},
+		});
+	} catch (error) {
+		console.error("Error accepting bid:", error);
+		return NextResponse.json(
+			{ error: "Failed to accept bid" },
+			{ status: 500 }
+		);
+	}
+}
+
+// Helper function to close admin auction without accepting a bid
+async function closeAuction(db, auctionId, userId) {
+	try {
+		const auctionObjectId = new ObjectId(auctionId);
+
+		// Close the auction
+		const result = await db.collection("auctions").updateOne(
+			{ _id: auctionObjectId },
+			{
+				$set: {
+					status: "completed",
+					closedBy: new ObjectId(userId),
+					closedAt: new Date(),
+					updatedAt: new Date(),
+				},
+			}
+		);
+
+		if (result.matchedCount === 0) {
+			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
+		}
+
+		// Update all bids for this auction to reflect auction closure
+		await db.collection("bids").updateMany(
+			{ auctionId: auctionObjectId },
+			{
+				$set: {
+					status: "auction_closed",
+					updatedAt: new Date(),
+				},
+			}
+		);
+
+		// Refund all bidders since no one won
+		const bids = await db
+			.collection("bids")
+			.find({
+				auctionId: auctionObjectId,
+				status: "leading",
+			})
+			.toArray();
+
+		for (const bid of bids) {
+			await db
+				.collection("users")
+				.updateOne(
+					{ _id: bid.userId },
+					{ $inc: { savingsBalance: bid.amount } }
+				);
+		}
+
+		return NextResponse.json({
+			message: "Auction closed successfully! All bids have been refunded.",
+		});
+	} catch (error) {
+		console.error("Error closing auction:", error);
+		return NextResponse.json(
+			{ error: "Failed to close auction" },
+			{ status: 500 }
+		);
+	}
+}
+
 export async function GET(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -82,6 +322,7 @@ export async function GET(request, { params }) {
 				status: auction.status,
 				endDate: auction.endDate,
 				totalInvestmentValue: auction.totalInvestmentValue,
+				investmentName: auction.investmentName,
 			},
 			bids,
 			statistics: {
@@ -92,6 +333,71 @@ export async function GET(request, { params }) {
 		});
 	} catch (error) {
 		console.error("GET /api/admin/auctions/[id]/bids error:", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 }
+		);
+	}
+}
+
+// POST - Accept bid for admin auction
+export async function POST(request, { params }) {
+	try {
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
+		}
+
+		const { id } = params;
+		const { action, bidId } = await request.json();
+
+		if (!ObjectId.isValid(id)) {
+			return NextResponse.json(
+				{ error: "Invalid auction ID" },
+				{ status: 400 }
+			);
+		}
+
+		if (!action) {
+			return NextResponse.json(
+				{ error: "Action is required" },
+				{ status: 400 }
+			);
+		}
+
+		const { db } = await connectToDatabase();
+		const userId = authResult.userId;
+
+		// Check if auction exists
+		const auction = await db.collection("auctions").findOne({
+			_id: new ObjectId(id),
+		});
+
+		if (!auction) {
+			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
+		}
+
+		switch (action) {
+			case "accept_bid":
+				if (!bidId) {
+					return NextResponse.json(
+						{ error: "Bid ID is required for accept_bid action" },
+						{ status: 400 }
+					);
+				}
+				return await acceptBid(db, id, bidId, userId);
+
+			case "close_auction":
+				return await closeAuction(db, id, userId);
+
+			default:
+				return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+		}
+	} catch (error) {
+		console.error("POST /api/admin/auctions/[id]/bids error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
