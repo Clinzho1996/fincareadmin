@@ -1,4 +1,4 @@
-// app/api/auctions/[id]/bids/route.js - Complete version with both GET and POST
+// app/api/auctions/[id]/bids/route.js - FIXED VERSION
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -205,9 +205,6 @@ export async function POST(request, { params }) {
 		let finalAmount = amount;
 
 		// Handle percentage-based bidding
-		// In your backend API (both admin and user endpoints), update the percentage logic:
-
-		// Handle percentage-based bidding
 		if (bidType === "percentage") {
 			if (!percentage || percentage <= 0 || percentage > 100) {
 				return NextResponse.json(
@@ -253,10 +250,9 @@ export async function POST(request, { params }) {
 			});
 		}
 
-		// For percentage bids, we don't enforce the minimum bid increment
-		// because different users can bid different percentages
+		// 🚨 CRITICAL FIX: Only apply minimum bid increment to ABSOLUTE bids
+		// Percentage bids should NOT have minimum increment requirement
 		if (bidType === "absolute") {
-			// Only check minimum increment for absolute bids
 			const minBidIncrement = auction.minBidIncrement || 5;
 			const minBidAmount =
 				(auction.currentBid || 0) * (1 + minBidIncrement / 100);
@@ -274,6 +270,9 @@ export async function POST(request, { params }) {
 			}
 		}
 
+		// 🚨 REMOVED: Don't apply the duplicate minimum bid increment check
+		// This was applying to ALL bids including percentage bids
+
 		// Check if bid meets reserve price
 		if (finalAmount < (auction.reservePrice || 0)) {
 			return NextResponse.json(
@@ -286,29 +285,13 @@ export async function POST(request, { params }) {
 			);
 		}
 
-		// Check if bid is higher than current bid
+		// Check if bid is higher than current bid (applies to both bid types)
 		if (finalAmount <= (auction.currentBid || 0)) {
 			return NextResponse.json(
 				{
 					error: `Bid must be higher than current bid of ₦${(
 						auction.currentBid || 0
 					).toLocaleString()}`,
-				},
-				{ status: 400 }
-			);
-		}
-
-		// Check minimum bid increment
-		const minBidIncrement = auction.minBidIncrement || 5;
-		const minBidAmount =
-			(auction.currentBid || auction.startingPrice || 0) *
-			(1 + minBidIncrement / 100);
-
-		if (finalAmount < minBidAmount) {
-			return NextResponse.json(
-				{
-					error: `Bid must be at least ₦${minBidAmount.toLocaleString()} (${minBidIncrement}% increase)`,
-					minBidAmount,
 				},
 				{ status: 400 }
 			);
