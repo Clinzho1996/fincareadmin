@@ -66,22 +66,27 @@ export default function AdminAuctionDetailPage() {
 		}
 	};
 
-	const handleAcceptBid = async () => {
+	const handleAcceptBid = async (bidId) => {
 		if (!confirm("Are you sure you want to accept this bid?")) return;
 
 		try {
 			setUpdating(true);
 			const response = await fetch(`/api/admin/auctions/${auctionId}/bids`, {
-				method: "PUT",
+				method: "POST", // Changed from PUT to POST
 				headers: {
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${accessToken}`,
 				},
+				body: JSON.stringify({
+					action: "accept_bid", // Add required action
+					bidId: bidId, // Add required bidId
+				}),
 			});
 
 			if (!response.ok) throw new Error("Failed to accept bid");
 
-			toast.success("Bid accepted successfully!");
+			const result = await response.json();
+			toast.success(result.message || "Bid accepted successfully!");
 			fetchAuctionDetails();
 		} catch (error) {
 			console.error("Error accepting bid:", error);
