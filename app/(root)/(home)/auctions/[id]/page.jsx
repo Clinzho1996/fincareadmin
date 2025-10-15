@@ -66,12 +66,12 @@ export default function AdminAuctionDetailPage() {
 		}
 	};
 
-	const handleAcceptBid = async (bidId) => {
+	const handleAcceptBid = async () => {
 		if (!confirm("Are you sure you want to accept this bid?")) return;
 
 		try {
 			setUpdating(true);
-			const response = await fetch(`/api/admin/bids/${bidId}/accept`, {
+			const response = await fetch(`/api/admin/auctions/${auctionId}/bids`, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",
