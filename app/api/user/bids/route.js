@@ -1,4 +1,4 @@
-// app/api/user/bids/route.js
+// app/api/user/bids/route.js - FIXED VERSION
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -52,9 +52,6 @@ export async function POST(request) {
 
 		let finalAmount = amount;
 
-		// Handle percentage-based bidding for user auctions
-		// In your backend API (both admin and user endpoints), update the percentage logic:
-
 		// Handle percentage-based bidding
 		if (bidType === "percentage") {
 			if (!percentage || percentage <= 0 || percentage > 100) {
@@ -101,10 +98,9 @@ export async function POST(request) {
 			});
 		}
 
-		// For percentage bids, we don't enforce the minimum bid increment
-		// because different users can bid different percentages
+		// 🚨 CRITICAL FIX: Only apply minimum bid increment to ABSOLUTE bids
+		// Percentage bids should NOT have minimum increment requirement
 		if (bidType === "absolute") {
-			// Only check minimum increment for absolute bids
 			const minBidIncrement = auction.minBidIncrement || 5;
 			const minBidAmount =
 				(auction.currentBid || 0) * (1 + minBidIncrement / 100);
@@ -121,29 +117,27 @@ export async function POST(request) {
 				);
 			}
 		}
-		// Calculate minimum bid amount for user auctions
-		const minBidIncrement = auction.minBidIncrement || 5;
-		const minBidAmount =
-			(auction.currentBid || auction.startingPrice || 0) *
-			(1 + minBidIncrement / 100);
 
-		if (finalAmount < minBidAmount) {
-			return NextResponse.json(
-				{
-					error: `Bid must be at least ₦${minBidAmount.toFixed(
-						2
-					)} (${minBidIncrement}% increase)`,
-					minBidAmount,
-				},
-				{ status: 400 }
-			);
-		}
+		// 🚨 REMOVED: Don't apply minimum bid increment check for percentage bids
+		// This was the problem - you were applying it to ALL bids
 
 		// Check if bid meets reserve price (if set)
 		if (auction.reservePrice && finalAmount < auction.reservePrice) {
 			return NextResponse.json(
 				{
 					error: `Bid must meet or exceed reserve price of ₦${auction.reservePrice.toLocaleString()}`,
+				},
+				{ status: 400 }
+			);
+		}
+
+		// Check if bid is higher than current bid (applies to both types)
+		if (finalAmount <= (auction.currentBid || 0)) {
+			return NextResponse.json(
+				{
+					error: `Bid must be higher than current bid of ₦${(
+						auction.currentBid || 0
+					).toLocaleString()}`,
 				},
 				{ status: 400 }
 			);
