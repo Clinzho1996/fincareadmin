@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
+// app/api/user/auctions/[id]/bids/route.js
 export async function GET(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -15,19 +16,16 @@ export async function GET(request, { params }) {
 		}
 		const { id } = params;
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(authResult.userId);
 
-		const auction = await db.collection("user_auctions").findOne({
-			_id: new ObjectId(id),
-		});
+		const bids = await db
+			.collection("bids")
+			.find({ auctionId: new ObjectId(id) })
+			.sort({ amount: -1, createdAt: -1 })
+			.toArray();
 
-		if (!auction) {
-			return NextResponse.json({ error: "Auction not found" }, { status: 404 });
-		}
-
-		return NextResponse.json({ auction });
+		return NextResponse.json({ bids });
 	} catch (error) {
-		console.error("GET /api/user/auctions/[id] error:", error);
+		console.error("GET /api/user/auctions/[id]/bids error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
