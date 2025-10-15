@@ -5,10 +5,44 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // GET all auctions (admin view)
-export async function GET() {
+export async function GET(request) {
 	try {
+		const { searchParams } = new URL(request.url);
+		const type = searchParams.get("type") || "all"; // all, admin, user
+
 		const { db } = await connectToDatabase();
-		const auctions = await db.collection("auctions").find({}).toArray();
+
+		let auctions = [];
+
+		if (type === "all" || type === "admin") {
+			const adminAuctions = await db
+				.collection("auctions")
+				.find({})
+				.sort({ createdAt: -1 })
+				.toArray();
+
+			auctions = [
+				...auctions,
+				...adminAuctions.map((a) => ({ ...a, type: "admin" })),
+			];
+		}
+
+		if (type === "all" || type === "user") {
+			const userAuctions = await db
+				.collection("user_auctions")
+				.find({})
+				.sort({ createdAt: -1 })
+				.toArray();
+
+			auctions = [
+				...auctions,
+				...userAuctions.map((a) => ({ ...a, type: "user" })),
+			];
+		}
+
+		// Sort by creation date
+		auctions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
 		return NextResponse.json({ auctions });
 	} catch (error) {
 		console.error("GET /api/admin/auctions error:", error);
