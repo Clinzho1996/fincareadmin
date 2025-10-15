@@ -4,7 +4,7 @@ import { ObjectId } from "mongodb";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
-export async function GET({ params }) {
+export async function GET(request, { params }) {
 	try {
 		const session = await getServerSession();
 		if (!session?.user?.id) {
