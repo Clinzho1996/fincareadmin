@@ -19,6 +19,7 @@ export async function GET(request, { params }) {
 
 		const auction = await db.collection("user_auctions").findOne({
 			_id: new ObjectId(id),
+			ownerId: userId,
 		});
 
 		if (!auction) {
