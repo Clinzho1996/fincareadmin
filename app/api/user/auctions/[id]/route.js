@@ -1,25 +1,22 @@
 // app/api/user/auctions/[id]/route.js
-import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 export async function GET(request, { params }) {
 	try {
-		const authResult = await authenticate(request);
-		if (authResult.error) {
-			return NextResponse.json(
-				{ error: authResult.error },
-				{ status: authResult.status }
-			);
+		const session = await getServerSession();
+		if (!session?.user?.id) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
+
 		const { id } = params;
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(authResult.userId);
 
+		// Find auction by ID only - don't restrict by ownerId so anyone can view
 		const auction = await db.collection("user_auctions").findOne({
 			_id: new ObjectId(id),
-			ownerId: userId,
 		});
 
 		if (!auction) {
