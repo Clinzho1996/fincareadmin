@@ -5,7 +5,7 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 // Helper function to accept a bid
-async function acceptBid(db, auctionId, bidId, userId) {
+async function acceptBid(db, auctionId, bidId) {
 	try {
 		const auctionObjectId = new ObjectId(auctionId);
 		const bidObjectId = new ObjectId(bidId);
