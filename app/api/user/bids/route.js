@@ -1,17 +1,19 @@
 // app/api/user/bids/route.js
+import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 // POST: Place a bid
 export async function POST(request) {
 	try {
-		const session = await getServerSession();
-		if (!session?.user?.id) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
 		}
-
 		const { auctionId, bidAmount } = await request.json();
 
 		if (!auctionId || !bidAmount) {
@@ -22,7 +24,7 @@ export async function POST(request) {
 		}
 
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(session.user.id);
+		const userId = new ObjectId(authResult.userId);
 		const auctionObjectId = new ObjectId(auctionId);
 
 		// Get auction details

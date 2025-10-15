@@ -1,22 +1,24 @@
 // app/api/user/auctions/route.js
+import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 // GET user's auctions and bids
 export async function GET(request) {
 	try {
-		const session = await getServerSession();
-		if (!session?.user?.id) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
 		}
-
 		const { searchParams } = new URL(request.url);
 		const type = searchParams.get("type") || "my-auctions"; // my-auctions, my-bids, active
 
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(session.user.id);
+		const userId = new ObjectId(authResult.userId);
 
 		switch (type) {
 			case "my-auctions":
@@ -72,11 +74,13 @@ export async function GET(request) {
 // POST: Create a new user auction
 export async function POST(request) {
 	try {
-		const session = await getServerSession();
-		if (!session?.user?.id) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
 		}
-
 		const {
 			title,
 			description,
@@ -101,7 +105,7 @@ export async function POST(request) {
 		}
 
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(session.user.id);
+		const userId = new ObjectId(authResult.userId);
 
 		const newAuction = {
 			ownerId: userId,
@@ -145,11 +149,13 @@ export async function POST(request) {
 // PUT: Update auction (accept bid, close auction, etc.)
 export async function PUT(request) {
 	try {
-		const session = await getServerSession();
-		if (!session?.user?.id) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status }
+			);
 		}
-
 		const { action, auctionId, bidId } = await request.json();
 
 		if (!action || !auctionId) {
@@ -160,7 +166,7 @@ export async function PUT(request) {
 		}
 
 		const { db } = await connectToDatabase();
-		const userId = new ObjectId(session.user.id);
+		const userId = new ObjectId(authResult.userId);
 
 		// Verify user owns the auction
 		const auction = await db.collection("user_auctions").findOne({
