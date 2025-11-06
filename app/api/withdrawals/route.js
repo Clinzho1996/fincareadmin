@@ -1,4 +1,4 @@
-// app/api/withdrawals/route.js
+// app/api/withdrawals/route.js - FIXED VERSION
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -22,11 +22,13 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Build query
-		const query = { userId: authResult.userId };
+		// Build query - FIX: Use ObjectId consistently
+		const query = { userId: new ObjectId(authResult.userId) };
 		if (status && status !== "all") {
 			query.status = status;
 		}
+
+		console.log("📱 GET Withdrawals - Query:", query);
 
 		const withdrawals = await db
 			.collection("withdrawals")
@@ -37,6 +39,8 @@ export async function GET(request) {
 			.toArray();
 
 		const total = await db.collection("withdrawals").countDocuments(query);
+
+		console.log("📱 GET Withdrawals - Found:", withdrawals.length);
 
 		return NextResponse.json({
 			withdrawals,
@@ -95,10 +99,15 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
+		// FIX: Use ObjectId consistently
+		const userId = new ObjectId(authResult.userId);
+
 		// Check if user has sufficient savings balance
-		const user = await db
-			.collection("users")
-			.findOne({ _id: new ObjectId(authResult.userId) });
+		const user = await db.collection("users").findOne({ _id: userId });
+
+		if (!user) {
+			return NextResponse.json({ error: "User not found" }, { status: 404 });
+		}
 
 		if (user.savingsBalance < amount) {
 			return NextResponse.json(
@@ -111,7 +120,7 @@ export async function POST(request) {
 		const pendingWithdrawals = await db
 			.collection("withdrawals")
 			.find({
-				userId: authResult.userId,
+				userId: userId, // FIX: Use ObjectId
 				status: "pending",
 			})
 			.toArray();
@@ -128,9 +137,9 @@ export async function POST(request) {
 			);
 		}
 
-		// Create withdrawal request
+		// Create withdrawal request - FIX: Store userId as ObjectId
 		const newWithdrawal = {
-			userId: authResult.userId,
+			userId: userId, // Store as ObjectId
 			amount,
 			accountName,
 			bankName,
@@ -142,15 +151,9 @@ export async function POST(request) {
 			updatedAt: new Date(),
 		};
 
-		const result = await db.collection("withdrawals").insertOne(newWithdrawal);
+		console.log("📱 POST Withdrawal - Creating:", newWithdrawal);
 
-		// Reserve the amount (deduct from available balance but not total savings)
-		await db
-			.collection("users")
-			.updateOne(
-				{ _id: authResult.userId },
-				{ $inc: { savingsBalance: -amount } }
-			);
+		const result = await db.collection("withdrawals").insertOne(newWithdrawal);
 
 		return NextResponse.json(
 			{

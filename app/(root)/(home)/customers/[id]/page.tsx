@@ -69,20 +69,37 @@ interface Saving {
 	targetAmount?: number;
 }
 
+interface Withdrawal {
+	_id: string;
+	amount: number;
+	accountName: string;
+	bankName: string;
+	accountNumber: string;
+	routingNumber?: string;
+	notes?: string;
+	status: string;
+	createdAt: string;
+	updatedAt?: string;
+}
+
 export default function CustomerDetailsPage() {
 	const { id } = useParams();
 	const { data: session } = useSession();
 	const accessToken = session?.accessToken;
 	const [customer, setCustomer] = useState<Customer | null>(null);
 	const [savings, setSavings] = useState<Saving[]>([]);
+	const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [savingsLoading, setSavingsLoading] = useState(false);
+	const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
+	const [activeTab, setActiveTab] = useState("savings"); // "savings" or "withdrawals"
 
 	useEffect(() => {
 		if (!id) return;
 		fetchCustomer();
 		fetchSavings();
+		fetchWithdrawals();
 	}, [id]);
 
 	const fetchCustomer = async () => {
@@ -117,7 +134,7 @@ export default function CustomerDetailsPage() {
 			}
 
 			const data = await res.json();
-			console.log("Savings API response:", data); // Debug log
+			console.log("Savings API response:", data);
 
 			if (data.status === "success") {
 				setSavings(data.data.savings || []);
@@ -130,6 +147,61 @@ export default function CustomerDetailsPage() {
 			setSavings([]);
 		} finally {
 			setSavingsLoading(false);
+		}
+	};
+
+	// In your customer details page, update the fetchWithdrawals function:
+	const fetchWithdrawals = async () => {
+		try {
+			setWithdrawalsLoading(true);
+			console.log("🔍 Fetching withdrawals for user ID:", id);
+
+			// First, let's test with the debug endpoint
+			const debugRes = await fetch(
+				`/api/admin/debug/withdrawals?userId=${id}`,
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+					},
+				}
+			);
+
+			const debugData = await debugRes.json();
+			console.log("🔍 DEBUG Results:", debugData);
+
+			// Then try the normal endpoint
+			const res = await fetch(
+				`/api/admin/withdrawals?userId=${id}&status=all`,
+				{
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${accessToken}`,
+					},
+				}
+			);
+
+			console.log("🔍 Withdrawals API response status:", res.status);
+
+			if (!res.ok) {
+				throw new Error(`HTTP error! status: ${res.status}`);
+			}
+
+			const data = await res.json();
+			console.log("🔍 Withdrawals API response data:", data);
+
+			if (data.withdrawals) {
+				console.log("🔍 Found withdrawals:", data.withdrawals.length);
+				setWithdrawals(data.withdrawals || []);
+			} else {
+				console.error("API returned error:", data.error);
+				setWithdrawals([]);
+			}
+		} catch (err) {
+			console.error("Error fetching withdrawals:", err);
+			setWithdrawals([]);
+		} finally {
+			setWithdrawalsLoading(false);
 			setLoading(false);
 			setRefreshing(false);
 		}
@@ -137,7 +209,7 @@ export default function CustomerDetailsPage() {
 
 	const handleRefresh = async () => {
 		setRefreshing(true);
-		await Promise.all([fetchCustomer(), fetchSavings()]);
+		await Promise.all([fetchCustomer(), fetchSavings(), fetchWithdrawals()]);
 	};
 
 	const handleVerifySaving = async (savingId: string) => {
@@ -198,6 +270,66 @@ export default function CustomerDetailsPage() {
 		}
 	};
 
+	const handleApproveWithdrawal = async (withdrawalId: string) => {
+		try {
+			const res = await fetch(`/api/admin/withdrawals`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${accessToken}`,
+				},
+				body: JSON.stringify({
+					withdrawalId,
+					action: "approve",
+				}),
+			});
+
+			const data = await res.json();
+			if (data.status === "success") {
+				alert(
+					"Withdrawal approved successfully and amount deducted from user's account"
+				);
+				handleRefresh();
+			} else {
+				alert(data.error || "Failed to approve withdrawal");
+			}
+		} catch (err) {
+			console.error("Error approving withdrawal:", err);
+			alert("Failed to approve withdrawal");
+		}
+	};
+
+	const handleRejectWithdrawal = async (withdrawalId: string) => {
+		const reason = prompt("Enter rejection reason:");
+		if (!reason) return;
+
+		try {
+			const res = await fetch(`/api/admin/withdrawals`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${accessToken}`,
+				},
+				body: JSON.stringify({
+					withdrawalId,
+					action: "reject",
+					notes: reason,
+				}),
+			});
+
+			const data = await res.json();
+			if (data.status === "success") {
+				alert("Withdrawal rejected successfully");
+				handleRefresh();
+			} else {
+				alert(data.error || "Failed to reject withdrawal");
+			}
+		} catch (err) {
+			console.error("Error rejecting withdrawal:", err);
+			alert("Failed to reject withdrawal");
+		}
+	};
+
 	const formatCurrency = (amount: number) => {
 		return new Intl.NumberFormat("en-NG", {
 			style: "currency",
@@ -218,7 +350,8 @@ export default function CustomerDetailsPage() {
 	const getStatusBadge = (status: string) => {
 		switch (status) {
 			case "verified":
-				return <Badge className="bg-green-100 text-green-800">Verified</Badge>;
+			case "approved":
+				return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
 			case "pending":
 				return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
 			case "rejected":
@@ -434,11 +567,11 @@ export default function CustomerDetailsPage() {
 					</CardContent>
 				</Card>
 
-				{/* Savings Management */}
+				{/* Financial Management */}
 				<Card>
 					<CardHeader className="flex flex-row items-center justify-between">
 						<div>
-							<CardTitle>Savings Management</CardTitle>
+							<CardTitle>Financial Management</CardTitle>
 							<p className="text-sm text-gray-500 mt-1">
 								Current Balance: {formatCurrency(customer.savingsBalance)}
 							</p>
@@ -456,78 +589,197 @@ export default function CustomerDetailsPage() {
 						</div>
 					</CardHeader>
 					<CardContent>
-						<div className="mb-4">
-							<h4 className="font-semibold mb-2">Savings History</h4>
-							{savingsLoading ? (
-								<div className="flex justify-center py-4">
-									<Loader2 className="h-5 w-5 animate-spin" />
-								</div>
-							) : savings.length === 0 ? (
-								<p className="text-gray-500 text-center py-4">
-									No savings records found
-								</p>
-							) : (
-								<div className="border rounded-lg overflow-hidden">
-									<Table>
-										<TableHeader>
-											<TableRow>
-												<TableHead>Amount</TableHead>
-												<TableHead>Reason</TableHead>
-												<TableHead>Date</TableHead>
-												<TableHead>Status</TableHead>
-												<TableHead>Actions</TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{savings.map((saving) => (
-												<TableRow key={saving._id}>
-													<TableCell className="font-semibold">
-														{formatCurrency(
-															saving.amount || saving.targetAmount || 0
-														)}
-													</TableCell>
-													<TableCell>{saving.reason}</TableCell>
-													<TableCell>
-														<div className="flex items-center">
-															<Calendar className="h-4 w-4 mr-1" />
-															{formatDate(saving.createdAt)}
-														</div>
-													</TableCell>
-													<TableCell>{getStatusBadge(saving.status)}</TableCell>
-													<TableCell>
-														{saving.status === "pending" && (
-															<div className="flex gap-2">
-																<Button
-																	size="sm"
-																	onClick={() => handleVerifySaving(saving._id)}
-																	className="h-8 px-2">
-																	<CheckCircle className="h-4 w-4" />
-																</Button>
-																<Button
-																	size="sm"
-																	variant="destructive"
-																	onClick={() => handleRejectSaving(saving._id)}
-																	className="h-8 px-2">
-																	<XCircle className="h-4 w-4" />
-																</Button>
-															</div>
-														)}
-														{saving.status !== "pending" && (
-															<Button
-																size="sm"
-																variant="outline"
-																className="h-8 px-2">
-																<Eye className="h-4 w-4" />
-															</Button>
-														)}
-													</TableCell>
-												</TableRow>
-											))}
-										</TableBody>
-									</Table>
-								</div>
-							)}
+						{/* Tab Navigation */}
+						<div className="flex border-b mb-4">
+							<button
+								className={`px-4 py-2 font-medium ${
+									activeTab === "savings"
+										? "border-b-2 border-primary text-primary"
+										: "text-gray-500"
+								}`}
+								onClick={() => setActiveTab("savings")}>
+								Savings Requests
+							</button>
+							<button
+								className={`px-4 py-2 font-medium ${
+									activeTab === "withdrawals"
+										? "border-b-2 border-primary text-primary"
+										: "text-gray-500"
+								}`}
+								onClick={() => setActiveTab("withdrawals")}>
+								Withdrawal Requests
+							</button>
 						</div>
+
+						{/* Savings Tab */}
+						{activeTab === "savings" && (
+							<div>
+								<h4 className="font-semibold mb-2">Savings History</h4>
+								{savingsLoading ? (
+									<div className="flex justify-center py-4">
+										<Loader2 className="h-5 w-5 animate-spin" />
+									</div>
+								) : savings.length === 0 ? (
+									<p className="text-gray-500 text-center py-4">
+										No savings records found
+									</p>
+								) : (
+									<div className="border rounded-lg overflow-hidden">
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>Amount</TableHead>
+													<TableHead>Reason</TableHead>
+													<TableHead>Date</TableHead>
+													<TableHead>Status</TableHead>
+													<TableHead>Actions</TableHead>
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{savings.map((saving) => (
+													<TableRow key={saving._id}>
+														<TableCell className="font-semibold">
+															{formatCurrency(
+																saving.amount || saving.targetAmount || 0
+															)}
+														</TableCell>
+														<TableCell>{saving.reason}</TableCell>
+														<TableCell>
+															<div className="flex items-center">
+																<Calendar className="h-4 w-4 mr-1" />
+																{formatDate(saving.createdAt)}
+															</div>
+														</TableCell>
+														<TableCell>
+															{getStatusBadge(saving.status)}
+														</TableCell>
+														<TableCell>
+															{saving.status === "pending" && (
+																<div className="flex gap-2">
+																	<Button
+																		size="sm"
+																		onClick={() =>
+																			handleVerifySaving(saving._id)
+																		}
+																		className="h-8 px-2">
+																		<CheckCircle className="h-4 w-4" />
+																	</Button>
+																	<Button
+																		size="sm"
+																		variant="destructive"
+																		onClick={() =>
+																			handleRejectSaving(saving._id)
+																		}
+																		className="h-8 px-2">
+																		<XCircle className="h-4 w-4" />
+																	</Button>
+																</div>
+															)}
+															{saving.status !== "pending" && (
+																<Button
+																	size="sm"
+																	variant="outline"
+																	className="h-8 px-2">
+																	<Eye className="h-4 w-4" />
+																</Button>
+															)}
+														</TableCell>
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Withdrawals Tab */}
+						{activeTab === "withdrawals" && (
+							<div>
+								<h4 className="font-semibold mb-2">Withdrawal Requests</h4>
+								{withdrawalsLoading ? (
+									<div className="flex justify-center py-4">
+										<Loader2 className="h-5 w-5 animate-spin" />
+									</div>
+								) : withdrawals.length === 0 ? (
+									<p className="text-gray-500 text-center py-4">
+										No withdrawal requests found
+									</p>
+								) : (
+									<div className="border rounded-lg overflow-hidden">
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>Amount</TableHead>
+													<TableHead>Bank Details</TableHead>
+													<TableHead>Date</TableHead>
+													<TableHead>Status</TableHead>
+													<TableHead>Actions</TableHead>
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{withdrawals.map((withdrawal) => (
+													<TableRow key={withdrawal._id}>
+														<TableCell className="font-semibold">
+															{formatCurrency(withdrawal.amount)}
+														</TableCell>
+														<TableCell>
+															<div className="text-sm">
+																<div>{withdrawal.accountName}</div>
+																<div>{withdrawal.bankName}</div>
+																<div className="text-gray-500">
+																	{withdrawal.accountNumber}
+																</div>
+															</div>
+														</TableCell>
+														<TableCell>
+															<div className="flex items-center">
+																<Calendar className="h-4 w-4 mr-1" />
+																{formatDate(withdrawal.createdAt)}
+															</div>
+														</TableCell>
+														<TableCell>
+															{getStatusBadge(withdrawal.status)}
+														</TableCell>
+														<TableCell>
+															{withdrawal.status === "pending" && (
+																<div className="flex gap-2">
+																	<Button
+																		size="sm"
+																		onClick={() =>
+																			handleApproveWithdrawal(withdrawal._id)
+																		}
+																		className="h-8 px-2 bg-green-600 hover:bg-green-700">
+																		<CheckCircle className="h-4 w-4" />
+																	</Button>
+																	<Button
+																		size="sm"
+																		variant="destructive"
+																		onClick={() =>
+																			handleRejectWithdrawal(withdrawal._id)
+																		}
+																		className="h-8 px-2">
+																		<XCircle className="h-4 w-4" />
+																	</Button>
+																</div>
+															)}
+															{withdrawal.status !== "pending" && (
+																<Button
+																	size="sm"
+																	variant="outline"
+																	className="h-8 px-2">
+																	<Eye className="h-4 w-4" />
+																</Button>
+															)}
+														</TableCell>
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</div>
+								)}
+							</div>
+						)}
 					</CardContent>
 				</Card>
 			</div>
