@@ -17,6 +17,8 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
+		console.log("🔍 ANALYTICS DEBUG - Starting analytics calculation");
+
 		// Get all analytics data in parallel for better performance
 		const [
 			totalLoans,
@@ -27,8 +29,11 @@ export async function GET(request) {
 			activeAuctions,
 			pendingMemberships,
 			recentTransactions,
+			// DEBUG: Get loan statistics
+			loanStats,
+			userLoanTotals,
 		] = await Promise.all([
-			// Total Loans (only approved loans)
+			// Total Loans (only approved loans) - CURRENT METHOD
 			db
 				.collection("loans")
 				.aggregate([
@@ -72,7 +77,37 @@ export async function GET(request) {
 				.sort({ createdAt: -1 })
 				.limit(10)
 				.toArray(),
+
+			// DEBUG: Get loan collection statistics
+			db
+				.collection("loans")
+				.aggregate([
+					{
+						$group: {
+							_id: "$status",
+							count: { $sum: 1 },
+							totalAmount: { $sum: "$loanAmount" },
+						},
+					},
+				])
+				.toArray(),
+
+			// DEBUG: Get total loans from users collection (stored values)
+			db
+				.collection("users")
+				.aggregate([{ $group: { _id: null, total: { $sum: "$totalLoans" } } }])
+				.toArray(),
 		]);
+
+		console.log("🔍 ANALYTICS DEBUG - Loan data:", {
+			fromLoansCollection: totalLoans[0]?.total || 0,
+			fromUsersCollection: userLoanTotals[0]?.total || 0,
+			loanStatusBreakdown: loanStats,
+			loanCount: await db.collection("loans").countDocuments(),
+			approvedLoanCount: await db
+				.collection("loans")
+				.countDocuments({ status: "approved" }),
+		});
 
 		// Calculate percentage changes (compared to previous period)
 		const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -82,6 +117,8 @@ export async function GET(request) {
 			previousInvestment,
 			previousSavings,
 			previousUsersCount,
+			// DEBUG: Previous period from users collection
+			previousUserLoans,
 		] = await Promise.all([
 			// Loans from previous period
 			db
@@ -128,6 +165,19 @@ export async function GET(request) {
 				isEmailVerified: true,
 				createdAt: { $lt: thirtyDaysAgo },
 			}),
+
+			// DEBUG: Previous period loans from users collection
+			db
+				.collection("users")
+				.aggregate([
+					{
+						$match: {
+							createdAt: { $lt: thirtyDaysAgo },
+						},
+					},
+					{ $group: { _id: null, total: { $sum: "$totalLoans" } } },
+				])
+				.toArray(),
 		]);
 
 		// Helper function to calculate percentage change
@@ -136,14 +186,38 @@ export async function GET(request) {
 			return ((current - previous) / previous) * 100;
 		};
 
+		// DECISION: Choose which loan total to use
+		// Option 1: Use loans collection (only approved loans)
+		const loanTotalFromLoansCollection = totalLoans[0]?.total || 0;
+
+		// Option 2: Use users collection (stored totals - includes manually entered data)
+		const loanTotalFromUsersCollection = userLoanTotals[0]?.total || 0;
+
+		// Option 3: Use the larger of the two (or choose based on your business logic)
+		const finalLoanTotal =
+			loanTotalFromUsersCollection > 0
+				? loanTotalFromUsersCollection
+				: loanTotalFromLoansCollection;
+
+		console.log("🔍 ANALYTICS DEBUG - Final loan total decision:", {
+			fromLoansCollection: loanTotalFromLoansCollection,
+			fromUsersCollection: loanTotalFromUsersCollection,
+			finalDecision: finalLoanTotal,
+		});
+
 		const analyticsData = {
 			loans: {
-				total: totalLoans[0]?.total || 0,
+				total: finalLoanTotal, // Use the chosen total
 				change: calculateChange(
-					totalLoans[0]?.total || 0,
-					previousLoans[0]?.total || 0
+					finalLoanTotal,
+					previousUserLoans[0]?.total || previousLoans[0]?.total || 0
 				),
 				pending: pendingWithdrawals,
+				// Include debug info (remove in production)
+				_debug: {
+					fromLoansCollection: loanTotalFromLoansCollection,
+					fromUsersCollection: loanTotalFromUsersCollection,
+				},
 			},
 			investment: {
 				total: totalInvestment[0]?.total || 0,
@@ -175,6 +249,11 @@ export async function GET(request) {
 			})),
 			timestamp: new Date().toISOString(),
 		};
+
+		console.log(
+			"✅ ANALYTICS DEBUG - Final analytics data:",
+			analyticsData.loans
+		);
 
 		return NextResponse.json({
 			status: "success",
