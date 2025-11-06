@@ -78,104 +78,76 @@ export async function GET(request) {
 			.toArray();
 
 		// Calculate additional stats for each user
+		// In your GET endpoint, replace the usersWithStats mapping:
 		const usersWithStats = await Promise.all(
 			users.map(async (user) => {
-				console.log(`=== CALCULATING STATS FOR USER: ${user._id} ===`);
+				console.log(`=== PROCESSING USER: ${user._id} ===`);
+				console.log("Stored financial data:", {
+					savingsBalance: user.savingsBalance,
+					totalInvestment: user.totalInvestment,
+					totalLoans: user.totalLoans,
+					totalAuctions: user.totalAuctions,
+				});
 
 				// Try different user ID formats for querying
 				const userIdObjectId = user._id; // This is already an ObjectId
 				const userIdString = user._id.toString();
 
-				console.log("User ID formats:", {
-					objectId: userIdObjectId,
-					string: userIdString,
-				});
-
-				// Query savings
+				// Query related records (for counts and detailed info)
 				const savings = await db
 					.collection("savings")
 					.find({
-						userId: {
-							$in: [userIdObjectId, userIdString],
-						},
+						userId: { $in: [userIdObjectId, userIdString] },
 					})
 					.toArray();
-				console.log(`Found ${savings.length} savings accounts`);
 
-				// Query investments
 				const investments = await db
 					.collection("investments")
 					.find({
-						userId: {
-							$in: [userIdObjectId, userIdString],
-						},
+						userId: { $in: [userIdObjectId, userIdString] },
 					})
 					.toArray();
-				console.log(`Found ${investments.length} investments`);
 
-				// Query loans - FIXED: Check all loans
 				const loans = await db
 					.collection("loans")
 					.find({
-						userId: {
-							$in: [userIdObjectId, userIdString],
-						},
+						userId: { $in: [userIdObjectId, userIdString] },
 					})
 					.toArray();
-				console.log(`Found ${loans.length} total loans`);
 
-				// Debug loan details
-				loans.forEach((loan, index) => {
-					console.log(`Loan ${index}:`, {
-						id: loan._id,
-						status: loan.status,
-						amount: loan.loanAmount,
-						userId: loan.userId,
-						userIdType: typeof loan.userId,
-						userIdConstructor: loan.userId?.constructor?.name,
-					});
-				});
-
-				// Query auctions
 				const auctions = await db
 					.collection("auctions")
 					.find({
-						userId: {
-							$in: [userIdObjectId, userIdString],
-						},
+						userId: { $in: [userIdObjectId, userIdString] },
 					})
 					.toArray();
-				console.log(`Found ${auctions.length} auctions`);
 
-				// Calculate totals
-				const totalSavings = savings.reduce(
-					(sum, s) => sum + Number(s.currentBalance || 0),
-					0
-				);
-				const totalInvestment = investments.reduce(
-					(sum, i) => sum + Number(i.amount || 0),
-					0
-				);
+				// Use STORED values from user document for totals, not calculated ones
+				// This is the key fix - use the values that were set via the edit form
+				const totalSavings = user.savingsBalance || 0;
+				const totalInvestment = user.totalInvestment || 0;
+				const totalLoans = user.totalLoans || 0; // Use stored value, not calculated
+				const totalAuctions = user.totalAuctions || 0; // Use stored value, not calculated
 
-				// FIXED: Count loans that are considered "active" for business purposes
-				// These statuses should count toward the total loan amount
-				const activeLoanStatuses = [
-					"approved",
-					"active",
-					"payment_pending",
-					"completed",
-				];
-				const activeLoans = loans.filter((loan) =>
-					activeLoanStatuses.includes(loan.status)
-				);
+				// Calculate counts for informational purposes
+				const savingsCount = savings.length;
+				const investmentsCount = investments.length;
+				const loansCount = loans.length;
+				const auctionsCount = auctions.length;
 
-				// FIXED: Use active loans for total amount calculation
-				const totalLoans = activeLoans.reduce(
+				// For debugging, also calculate what the "old" way would show
+				const calculatedTotalLoans = loans.reduce(
 					(sum, l) => sum + Number(l.loanAmount || 0),
 					0
 				);
+				const calculatedTotalAuctions = auctions.length;
 
-				const totalAuctions = auctions.length;
+				console.log(`User ${user._id} comparison:`, {
+					storedTotalLoans: totalLoans,
+					calculatedTotalLoans: calculatedTotalLoans,
+					storedTotalAuctions: totalAuctions,
+					calculatedTotalAuctions: calculatedTotalAuctions,
+				});
 
 				// Determine membership status
 				let isMember = "none";
@@ -187,28 +159,25 @@ export async function GET(request) {
 						user.membershipStatus === "approved" ? "member" : "pending";
 				}
 
-				console.log(`User ${user._id} stats:`, {
-					totalSavings,
-					totalInvestment,
-					totalLoans,
-					totalAuctions,
-					loansCount: loans.length,
-					activeLoansCount: activeLoans.length,
-					loanStatuses: loans.map((l) => l.status), // Log all statuses for debugging
-				});
-
 				return {
 					...user,
+					// Use the stored values that come from manual edits
 					totalSavings,
+					savingsBalance: totalSavings, // Alias for consistency
 					totalInvestment,
-					totalLoans, // This will now show the sum of active/completed loans
-					totalAuctions,
+					totalLoans, // This now uses the manually set value
+					totalAuctions, // This now uses the manually set value
 					isMember,
-					savingsCount: savings.length,
-					investmentsCount: investments.length,
-					loansCount: loans.length, // Total loans count (all statuses)
-					activeLoansCount: activeLoans.length, // Only active status loans count
-					auctionsCount: auctions.length,
+					// Counts for informational purposes
+					savingsCount,
+					investmentsCount,
+					loansCount,
+					auctionsCount,
+					// Debug info (remove in production)
+					_calculatedTotals: {
+						loans: calculatedTotalLoans,
+						auctions: calculatedTotalAuctions,
+					},
 				};
 			})
 		);

@@ -220,7 +220,6 @@ export async function GET(request, { params }) {
 	}
 }
 
-// UPDATE customer
 // PUT /api/admin/customers/[id] - Comprehensive customer update
 export async function PUT(request, { params }) {
 	try {
@@ -233,12 +232,10 @@ export async function PUT(request, { params }) {
 		}
 
 		const token = await getToken({ req: request });
-		if (!token || token.role !== "super_admin") {
-			return NextResponse.json(
-				{ error: "Unauthorized. Super admin access required." },
-				{ status: 403 }
-			);
+		if (!token) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 		}
+
 		const { id } = params;
 		if (!ObjectId.isValid(id)) {
 			return NextResponse.json(
@@ -248,6 +245,8 @@ export async function PUT(request, { params }) {
 		}
 
 		const body = await request.json();
+		console.log("PUT request body:", body); // Debug log
+
 		const {
 			// Basic Information
 			firstName,
@@ -272,13 +271,7 @@ export async function PUT(request, { params }) {
 			membershipStatus,
 			kycCompleted,
 
-			// Financial Data (Super Admin only)
-			savings = [],
-			loans = [],
-			investments = [],
-			auctions = [],
-
-			// Summary Financial Data
+			// Financial Summary Data
 			savingsBalance,
 			totalInvestment,
 			totalLoans,
@@ -328,7 +321,7 @@ export async function PUT(request, { params }) {
 			}
 		}
 
-		// Prepare basic update data (available to all admins)
+		// Prepare update data
 		const updateData = {
 			...(firstName && { firstName }),
 			...(lastName && { lastName }),
@@ -347,6 +340,18 @@ export async function PUT(request, { params }) {
 			...(membershipLevel && { membershipLevel }),
 			...(membershipStatus && { membershipStatus }),
 			...(kycCompleted !== undefined && { kycCompleted }),
+			// Financial fields - make sure these are included
+			...(savingsBalance !== undefined && {
+				savingsBalance: Number(savingsBalance),
+			}),
+			...(totalInvestment !== undefined && {
+				totalInvestment: Number(totalInvestment),
+			}),
+			...(totalLoans !== undefined && { totalLoans: Number(totalLoans) }),
+			...(totalAuctions !== undefined && {
+				totalAuctions: Number(totalAuctions),
+			}),
+			...(isExistingCustomer !== undefined && { isExistingCustomer }),
 			updatedAt: new Date(),
 			lastUpdatedBy: {
 				adminId: authResult.userId || "unknown",
@@ -360,156 +365,7 @@ export async function PUT(request, { params }) {
 			(key) => updateData[key] === undefined && delete updateData[key]
 		);
 
-		// Financial data operations (Super Admin only)
-		let financialOperations = [];
-		let financialResults = {};
-
-		// Check if user is super admin for financial operations
-		const isSuperAdmin = token.role === "super_admin";
-
-		if (isSuperAdmin) {
-			console.log("Super admin detected - processing financial data");
-
-			// Process savings
-			if (savings && savings.length > 0) {
-				const savingsOperations = savings.map((saving) => ({
-					updateOne: {
-						filter: {
-							userId: new ObjectId(id),
-							_id: saving._id ? new ObjectId(saving._id) : new ObjectId(),
-						},
-						update: {
-							$set: {
-								...saving,
-								userId: new ObjectId(id),
-								updatedAt: new Date(),
-								lastUpdatedBy: {
-									adminId: authResult.userId,
-									adminEmail: token.email,
-									timestamp: new Date(),
-								},
-							},
-						},
-						upsert: true,
-					},
-				}));
-				financialOperations.push(...savingsOperations);
-			}
-
-			// Process loans
-			if (loans && loans.length > 0) {
-				const loanOperations = loans.map((loan) => ({
-					updateOne: {
-						filter: {
-							userId: new ObjectId(id),
-							_id: loan._id ? new ObjectId(loan._id) : new ObjectId(),
-						},
-						update: {
-							$set: {
-								...loan,
-								userId: new ObjectId(id),
-								updatedAt: new Date(),
-								lastUpdatedBy: {
-									adminId: authResult.userId,
-									adminEmail: token.email,
-									timestamp: new Date(),
-								},
-							},
-						},
-						upsert: true,
-					},
-				}));
-				financialOperations.push(...loanOperations);
-			}
-
-			// Process investments
-			if (investments && investments.length > 0) {
-				const investmentOperations = investments.map((investment) => ({
-					updateOne: {
-						filter: {
-							userId: new ObjectId(id),
-							_id: investment._id
-								? new ObjectId(investment._id)
-								: new ObjectId(),
-						},
-						update: {
-							$set: {
-								...investment,
-								userId: new ObjectId(id),
-								updatedAt: new Date(),
-								lastUpdatedBy: {
-									adminId: authResult.userId,
-									adminEmail: token.email,
-									timestamp: new Date(),
-								},
-							},
-						},
-						upsert: true,
-					},
-				}));
-				financialOperations.push(...investmentOperations);
-			}
-
-			// Process auctions
-			if (auctions && auctions.length > 0) {
-				const auctionOperations = auctions.map((auction) => ({
-					updateOne: {
-						filter: {
-							userId: new ObjectId(id),
-							_id: auction._id ? new ObjectId(auction._id) : new ObjectId(),
-						},
-						update: {
-							$set: {
-								...auction,
-								userId: new ObjectId(id),
-								updatedAt: new Date(),
-								lastUpdatedBy: {
-									adminId: authResult.userId,
-									adminEmail: token.email,
-									timestamp: new Date(),
-								},
-							},
-						},
-						upsert: true,
-					},
-				}));
-				financialOperations.push(...auctionOperations);
-			}
-
-			// Update summary financial data if provided
-			if (savingsBalance !== undefined)
-				updateData.savingsBalance = savingsBalance;
-			if (totalInvestment !== undefined)
-				updateData.totalInvestment = totalInvestment;
-			if (totalLoans !== undefined) updateData.totalLoans = totalLoans;
-			if (totalAuctions !== undefined) updateData.totalAuctions = totalAuctions;
-			if (isExistingCustomer !== undefined)
-				updateData.isExistingCustomer = isExistingCustomer;
-
-			// Execute financial operations if any
-			if (financialOperations.length > 0) {
-				if (savings && savings.length > 0) {
-					financialResults.savings = await db
-						.collection("savings")
-						.bulkWrite(savingsOperations);
-				}
-				if (loans && loans.length > 0) {
-					financialResults.loans = await db
-						.collection("loans")
-						.bulkWrite(loanOperations);
-				}
-				if (investments && investments.length > 0) {
-					financialResults.investments = await db
-						.collection("investments")
-						.bulkWrite(investmentOperations);
-				}
-				if (auctions && auctions.length > 0) {
-					financialResults.auctions = await db
-						.collection("auctions")
-						.bulkWrite(auctionOperations);
-				}
-			}
-		}
+		console.log("Final update data:", updateData); // Debug log
 
 		// Update customer document
 		const result = await db
@@ -523,12 +379,11 @@ export async function PUT(request, { params }) {
 			);
 		}
 
+		console.log("Update result:", result); // Debug log
+
 		return NextResponse.json({
 			status: "success",
-			message:
-				"Customer updated successfully" +
-				(isSuperAdmin ? " with financial records" : ""),
-			financialOperations: isSuperAdmin ? financialResults : undefined,
+			message: "Customer updated successfully",
 			updatedFields: Object.keys(updateData),
 		});
 	} catch (error) {
@@ -539,7 +394,6 @@ export async function PUT(request, { params }) {
 		);
 	}
 }
-
 // DELETE customer
 export async function DELETE(request, { params }) {
 	try {

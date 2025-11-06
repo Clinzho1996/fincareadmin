@@ -198,11 +198,11 @@ export function CustomerDataTable<TData, TValue>({
 
 			if (response.status === 200 || response.status === 201) {
 				if (onStaffAdded) {
-				onStaffAdded();
-			} else {
-				// Fallback to local fetch if callback not provided
-				await fetchStaffs();
-			}
+					onStaffAdded();
+				} else {
+					// Fallback to local fetch if callback not provided
+					await fetchStaffs();
+				}
 				toast.success("Staff member added successfully!");
 				closeModal();
 				setFirstName("");
@@ -309,7 +309,7 @@ export function CustomerDataTable<TData, TValue>({
 								<SelectTrigger className="w-full">
 									<SelectValue placeholder="Select Gender" />
 								</SelectTrigger>
-								<SelectContent className="bg-white z-10 select text-gray-300">
+								<SelectContent className="bg-white option">
 									<SelectItem value="light">Male</SelectItem>
 									<SelectItem value="dark">Female</SelectItem>
 								</SelectContent>

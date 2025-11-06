@@ -223,6 +223,7 @@ const CustomerTable = () => {
 		await fetchCustomers();
 	};
 	// -------------- Fetch Customers --------------
+	// -------------- Fetch Customers --------------
 	const fetchCustomers = async () => {
 		if (!accessToken) return;
 
@@ -232,12 +233,17 @@ const CustomerTable = () => {
 				headers: {
 					Authorization: `Bearer ${accessToken}`,
 				},
+				// Prevent caching
+				cache: "no-store",
 			});
 
 			const result = await response.json();
+			console.log("Fetched customers:", result); // Debug log
 
 			if (result.status === "success") {
 				setTableData(result.customers);
+			} else {
+				throw new Error(result.error || "Failed to fetch customers");
 			}
 		} catch (error) {
 			console.error("Error fetching customers:", error);
@@ -295,47 +301,68 @@ const CustomerTable = () => {
 
 		try {
 			setIsLoading(true);
-			await axios.put(
-				`/api/admin/customers/${editData.id}`,
-				{
-					// Basic information
-					firstName: editData.firstName,
-					lastName: editData.lastName,
-					email: editData.email,
-					phone: editData.phone,
-					address: editData.address,
-					gender: editData.gender,
-					account_number: editData.account_number,
-					bank_name: editData.bank_name,
-					bvn: editData.bvn,
-					profession: editData.profession,
-					source_of_income: editData.source_of_income,
-					kycCompleted: editData.kycCompleted,
-					membershipLevel: editData.membershipLevel,
-					membershipStatus: editData.membershipStatus,
 
-					// Financial data (Super Admin only)
-					...advancedEditData,
-				},
+			// Prepare payload with all financial fields
+			const payload = {
+				// Basic information
+				firstName: editData.firstName,
+				lastName: editData.lastName,
+				email: editData.email,
+				phone: editData.phone,
+				address: editData.address,
+				gender: editData.gender,
+				account_number: editData.account_number,
+				bank_name: editData.bank_name,
+				bvn: editData.bvn,
+				profession: editData.profession,
+				source_of_income: editData.source_of_income,
+				kycCompleted: editData.kycCompleted,
+				membershipLevel: editData.membershipLevel,
+				membershipStatus: editData.membershipStatus,
+
+				// Financial data - ensure all are included as numbers
+				savingsBalance: Number(advancedEditData.savingsBalance) || 0,
+				totalInvestment: Number(advancedEditData.totalInvestment) || 0,
+				totalLoans: Number(advancedEditData.totalLoans) || 0, // Make sure this is included
+				totalAuctions: Number(advancedEditData.totalAuctions) || 0, // Make sure this is included
+				isExistingCustomer: advancedEditData.isExistingCustomer,
+			};
+
+			console.log("🔄 Sending advanced update payload:", payload);
+
+			const response = await axios.put(
+				`/api/admin/customers/${editData.id}`,
+				payload,
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
 				}
 			);
-			toast.success("Customer and financial data updated successfully.");
-			fetchCustomers();
-			setAdvancedEditModalOpen(false);
+
+			console.log("✅ API Response:", response.data);
+
+			if (response.data.status === "success") {
+				toast.success("Customer and financial data updated successfully.");
+				// Force refresh with a slight delay to ensure DB is updated
+				setTimeout(() => {
+					fetchCustomers();
+				}, 500);
+				setAdvancedEditModalOpen(false);
+			} else {
+				throw new Error(response.data.error || "Update failed");
+			}
 		} catch (error: any) {
-			console.error("Error updating customer:", error);
+			console.error("❌ Error updating customer:", error);
+			console.error("Full error details:", error.response?.data);
 			const errorMessage =
 				error.response?.data?.error ||
 				error.response?.data?.message ||
+				error.message ||
 				"Failed to update customer.";
 			toast.error(errorMessage);
 		} finally {
 			setIsLoading(false);
 		}
 	};
-
 	// -------------- Delete Customer --------------
 	const deleteCustomer = async (id: string) => {
 		if (!accessToken) return;
@@ -665,7 +692,7 @@ const CustomerTable = () => {
 									<SelectTrigger className="w-full">
 										<SelectValue placeholder="Select Gender" />
 									</SelectTrigger>
-									<SelectContent className="bg-white z-10 select text-gray-300">
+									<SelectContent className="bg-white option">
 										<SelectItem value="male">Male</SelectItem>
 										<SelectItem value="female">Female</SelectItem>
 									</SelectContent>
@@ -810,13 +837,6 @@ const CustomerTable = () => {
 											/>
 										</div>
 									</div>
-								</div>
-
-								{/* Additional fields for financial data management would go here */}
-								<div className="text-sm text-gray-500">
-									Note: Full financial record management interface can be added
-									here for managing individual savings accounts, loans,
-									investments, etc.
 								</div>
 							</div>
 
