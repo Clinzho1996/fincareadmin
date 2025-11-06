@@ -54,6 +54,7 @@ export async function GET(request) {
 			} catch (error) {
 				// If ObjectId conversion fails, try as string
 				query.userId = userId;
+				console.log("🔍 UserId treated as string:", error);
 			}
 		}
 
