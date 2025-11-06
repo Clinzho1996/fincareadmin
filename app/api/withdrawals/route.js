@@ -1,4 +1,4 @@
-// app/api/withdrawals/route.js - FIXED VERSION
+// app/api/withdrawals/route.js - WITHOUT AUTO DEDUCT
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -22,7 +22,7 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
-		// Build query - FIX: Use ObjectId consistently
+		// Build query - Use ObjectId consistently
 		const query = { userId: new ObjectId(authResult.userId) };
 		if (status && status !== "all") {
 			query.status = status;
@@ -60,7 +60,7 @@ export async function GET(request) {
 	}
 }
 
-// POST - Create withdrawal request
+// POST - Create withdrawal request (NO AUTO DEDUCT)
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -99,7 +99,7 @@ export async function POST(request) {
 
 		const { db } = await connectToDatabase();
 
-		// FIX: Use ObjectId consistently
+		// Use ObjectId consistently
 		const userId = new ObjectId(authResult.userId);
 
 		// Check if user has sufficient savings balance
@@ -120,7 +120,7 @@ export async function POST(request) {
 		const pendingWithdrawals = await db
 			.collection("withdrawals")
 			.find({
-				userId: userId, // FIX: Use ObjectId
+				userId: userId,
 				status: "pending",
 			})
 			.toArray();
@@ -137,9 +137,9 @@ export async function POST(request) {
 			);
 		}
 
-		// Create withdrawal request - FIX: Store userId as ObjectId
+		// Create withdrawal request - Store userId as ObjectId
 		const newWithdrawal = {
-			userId: userId, // Store as ObjectId
+			userId: userId,
 			amount,
 			accountName,
 			bankName,
@@ -155,9 +155,12 @@ export async function POST(request) {
 
 		const result = await db.collection("withdrawals").insertOne(newWithdrawal);
 
+		console.log("📱 POST Withdrawal - Created with ID:", result.insertedId);
+
 		return NextResponse.json(
 			{
-				message: "Withdrawal request submitted successfully",
+				message:
+					"Withdrawal request submitted successfully. Waiting for admin approval.",
 				withdrawalId: result.insertedId,
 			},
 			{ status: 201 }

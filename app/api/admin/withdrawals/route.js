@@ -123,7 +123,7 @@ export async function GET(request) {
 	}
 }
 
-// PATCH - Approve or reject withdrawal (admin)
+// In your app/api/admin/withdrawals/route.js - PATCH method
 export async function PATCH(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -141,7 +141,7 @@ export async function PATCH(request) {
 			.collection("users")
 			.findOne({ _id: new ObjectId(authResult.userId) });
 
-		if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+		if (!user || user.role !== "super_admin") {
 			return NextResponse.json(
 				{ error: "Admin access required" },
 				{ status: 403 }
@@ -206,18 +206,31 @@ export async function PATCH(request) {
 
 		try {
 			await session.withTransaction(async () => {
-				// Update withdrawal status
-				await db
-					.collection("withdrawals")
-					.updateOne(
-						{ _id: new ObjectId(withdrawalId) },
-						{ $set: updateData },
-						{ session }
-					);
-
 				if (action === "approve") {
-					// For approved withdrawals, the amount was already deducted when created
-					// We just need to create a transaction record
+					// ✅ DEDUCT AMOUNT ONLY WHEN APPROVED
+					// Check if user still has sufficient balance
+					const currentUser = await db
+						.collection("users")
+						.findOne({ _id: withdrawal.userId }, { session });
+
+					if (!currentUser) {
+						throw new Error("User not found");
+					}
+
+					if (currentUser.savingsBalance < withdrawal.amount) {
+						throw new Error("User no longer has sufficient balance");
+					}
+
+					// Deduct the amount from user's savings balance
+					await db
+						.collection("users")
+						.updateOne(
+							{ _id: withdrawal.userId },
+							{ $inc: { savingsBalance: -withdrawal.amount } },
+							{ session }
+						);
+
+					// Create a transaction record
 					const transaction = {
 						userId: withdrawal.userId,
 						type: "withdrawal",
@@ -233,22 +246,14 @@ export async function PATCH(request) {
 						.collection("transactions")
 						.insertOne(transaction, { session });
 				} else if (action === "reject") {
-					// For rejected withdrawals, return the amount to user's savings balance
-					await db
-						.collection("users")
-						.updateOne(
-							{ _id: new ObjectId(withdrawal.userId) },
-							{ $inc: { savingsBalance: withdrawal.amount } },
-							{ session }
-						);
-
-					// Create a transaction record for the returned amount
+					// For rejected withdrawals, no balance change needed since we never deducted
+					// Just create a rejection record
 					const transaction = {
 						userId: withdrawal.userId,
-						type: "withdrawal_reversal",
+						type: "withdrawal_rejected",
 						amount: withdrawal.amount,
-						status: "completed",
-						description: `Withdrawal reversal - ${withdrawal.bankName}`,
+						status: "cancelled",
+						description: `Withdrawal rejected - ${withdrawal.bankName}`,
 						reference: `WDR${Date.now()}`,
 						createdAt: new Date(),
 						updatedAt: new Date(),
@@ -258,6 +263,15 @@ export async function PATCH(request) {
 						.collection("transactions")
 						.insertOne(transaction, { session });
 				}
+
+				// Update withdrawal status
+				await db
+					.collection("withdrawals")
+					.updateOne(
+						{ _id: new ObjectId(withdrawalId) },
+						{ $set: updateData },
+						{ session }
+					);
 			});
 		} finally {
 			await session.endSession();
@@ -272,7 +286,7 @@ export async function PATCH(request) {
 	} catch (error) {
 		console.error("PATCH /api/admin/withdrawals error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error: " + error.message },
 			{ status: 500 }
 		);
 	}
