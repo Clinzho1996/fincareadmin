@@ -284,7 +284,6 @@ export async function PUT(request, { params }) {
 
 			// Additional flags
 			isExistingCustomer,
-			registrationDate,
 		} = body;
 
 		const { db } = await connectToDatabase();
