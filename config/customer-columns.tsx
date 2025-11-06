@@ -57,17 +57,24 @@ export type Customer = {
 	gender?: string;
 	account_number?: string;
 	bank_name?: string;
+	bvn?: string;
+	profession?: string;
+	source_of_income?: string;
+	kycCompleted?: boolean;
+	isExistingCustomer?: boolean;
 };
 
 declare module "next-auth" {
 	interface Session {
 		accessToken?: string;
+		role?: string;
 	}
 }
 
 const CustomerTable = () => {
 	const { data: session } = useSession();
 	const accessToken = session?.accessToken;
+
 	const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
 	const [isReactivateModalOpen, setReactivateModalOpen] = useState(false);
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -75,6 +82,7 @@ const CustomerTable = () => {
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [tableData, setTableData] = useState<Customer[]>([]);
 	const [isEditModalOpen, setEditModalOpen] = useState(false);
+	const [isAdvancedEditModalOpen, setAdvancedEditModalOpen] = useState(false);
 	const [editData, setEditData] = useState({
 		id: "",
 		firstName: "",
@@ -85,6 +93,25 @@ const CustomerTable = () => {
 		gender: "",
 		account_number: "",
 		bank_name: "",
+		bvn: "",
+		profession: "",
+		source_of_income: "",
+		kycCompleted: false,
+		membershipLevel: "none",
+		membershipStatus: "none",
+	});
+
+	// Advanced edit state (for super admin only)
+	const [advancedEditData, setAdvancedEditData] = useState({
+		savings: [] as any[],
+		loans: [] as any[],
+		investments: [] as any[],
+		auctions: [] as any[],
+		savingsBalance: 0,
+		totalInvestment: 0,
+		totalLoans: 0,
+		totalAuctions: 0,
+		isExistingCustomer: false,
 	});
 
 	const openEditModal = (row: any) => {
@@ -99,12 +126,70 @@ const CustomerTable = () => {
 			gender: customer.gender || "",
 			account_number: customer.account_number || "",
 			bank_name: customer.bank_name || "",
+			bvn: customer.bvn || "",
+			profession: customer.profession || "",
+			source_of_income: customer.source_of_income || "",
+			kycCompleted: customer.kycCompleted || false,
+			membershipLevel: customer.membershipLevel || "none",
+			membershipStatus: customer.membershipStatus || "none",
 		});
 		setEditModalOpen(true);
 	};
 
+	const openAdvancedEditModal = async (row: any) => {
+		const customer = row.original;
+
+		// Set basic data
+		setEditData({
+			id: customer._id,
+			firstName: customer.firstName || "",
+			lastName: customer.lastName || "",
+			email: customer.email || "",
+			phone: customer.phone || "",
+			address: customer.address || "",
+			gender: customer.gender || "",
+			account_number: customer.account_number || "",
+			bank_name: customer.bank_name || "",
+			bvn: customer.bvn || "",
+			profession: customer.profession || "",
+			source_of_income: customer.source_of_income || "",
+			kycCompleted: customer.kycCompleted || false,
+			membershipLevel: customer.membershipLevel || "none",
+			membershipStatus: customer.membershipStatus || "none",
+		});
+
+		// Fetch financial data for advanced editing
+		try {
+			setIsLoading(true);
+			// You might want to create an API endpoint to fetch customer financial details
+			// For now, we'll set the summary data
+			setAdvancedEditData({
+				savings: [],
+				loans: [],
+				investments: [],
+				auctions: [],
+				savingsBalance: customer.savingsBalance || 0,
+				totalInvestment: customer.totalInvestment || 0,
+				totalLoans: customer.totalLoans || 0,
+				totalAuctions: customer.totalAuctions || 0,
+				isExistingCustomer: customer.isExistingCustomer || false,
+			});
+
+			setAdvancedEditModalOpen(true);
+		} catch (error) {
+			console.error("Error fetching customer financial data:", error);
+			toast.error("Failed to load customer financial data");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	const closeEditModal = () => {
 		setEditModalOpen(false);
+	};
+
+	const closeAdvancedEditModal = () => {
+		setAdvancedEditModalOpen(false);
 	};
 
 	const openRestoreModal = (row: any) => {
@@ -162,7 +247,6 @@ const CustomerTable = () => {
 		}
 	};
 
-	// -------------- Edit Customer --------------
 	const handleEditCustomer = async () => {
 		if (!accessToken) return;
 
@@ -179,6 +263,12 @@ const CustomerTable = () => {
 					gender: editData.gender,
 					account_number: editData.account_number,
 					bank_name: editData.bank_name,
+					bvn: editData.bvn,
+					profession: editData.profession,
+					source_of_income: editData.source_of_income,
+					kycCompleted: editData.kycCompleted,
+					membershipLevel: editData.membershipLevel,
+					membershipStatus: editData.membershipStatus,
 				},
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
@@ -187,9 +277,60 @@ const CustomerTable = () => {
 			toast.success("Customer updated successfully.");
 			fetchCustomers();
 			setEditModalOpen(false);
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error updating customer:", error);
-			toast.error("Failed to update customer.");
+			const errorMessage =
+				error.response?.data?.error ||
+				error.response?.data?.message ||
+				"Failed to update customer.";
+			toast.error(errorMessage);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	// -------------- Edit Customer (Advanced - Super Admin Only) --------------
+	const handleAdvancedEditCustomer = async () => {
+		if (!accessToken) return;
+
+		try {
+			setIsLoading(true);
+			await axios.put(
+				`/api/admin/customers/${editData.id}`,
+				{
+					// Basic information
+					firstName: editData.firstName,
+					lastName: editData.lastName,
+					email: editData.email,
+					phone: editData.phone,
+					address: editData.address,
+					gender: editData.gender,
+					account_number: editData.account_number,
+					bank_name: editData.bank_name,
+					bvn: editData.bvn,
+					profession: editData.profession,
+					source_of_income: editData.source_of_income,
+					kycCompleted: editData.kycCompleted,
+					membershipLevel: editData.membershipLevel,
+					membershipStatus: editData.membershipStatus,
+
+					// Financial data (Super Admin only)
+					...advancedEditData,
+				},
+				{
+					headers: { Authorization: `Bearer ${accessToken}` },
+				}
+			);
+			toast.success("Customer and financial data updated successfully.");
+			fetchCustomers();
+			setAdvancedEditModalOpen(false);
+		} catch (error: any) {
+			console.error("Error updating customer:", error);
+			const errorMessage =
+				error.response?.data?.error ||
+				error.response?.data?.message ||
+				"Failed to update customer.";
+			toast.error(errorMessage);
 		} finally {
 			setIsLoading(false);
 		}
@@ -274,17 +415,6 @@ const CustomerTable = () => {
 			style: "currency",
 			currency: "NGN",
 		}).format(amount);
-	};
-
-	const formatDate = (rawDate: string | Date) => {
-		const options: Intl.DateTimeFormatOptions = {
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-		};
-		const parsedDate =
-			typeof rawDate === "string" ? new Date(rawDate) : rawDate;
-		return new Intl.DateTimeFormat("en-US", options).format(parsedDate);
 	};
 
 	const columns: ColumnDef<Customer>[] = [
@@ -419,6 +549,15 @@ const CustomerTable = () => {
 								onClick={() => openEditModal(row)}>
 								<IconEdit />
 								<p className="text-xs font-inter">Edit Customer</p>
+							</DropdownMenuItem>
+
+							<DropdownMenuItem
+								className="action cursor-pointer hover:bg-green-100"
+								onClick={() => openAdvancedEditModal(row)}>
+								<IconEdit />
+								<p className="text-xs font-inter text-green-600">
+									Advanced Edit (Financial Data)
+								</p>
 							</DropdownMenuItem>
 
 							{customer.membershipStatus === "approved" ? (
@@ -565,6 +704,134 @@ const CustomerTable = () => {
 									onClick={handleEditCustomer}
 									disabled={isLoading}>
 									{isLoading ? "Updating..." : "Update Customer"}
+								</Button>
+							</div>
+						</div>
+					</div>
+				</Modal>
+			)}
+
+			{isAdvancedEditModalOpen && (
+				<Modal
+					isOpen={isAdvancedEditModalOpen}
+					onClose={closeAdvancedEditModal}
+					title="Advanced Customer Edit">
+					<div className="bg-white p-0 rounded-lg transition-transform ease-in-out overflow-y-auto max-h-[80vh] form">
+						<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
+							<div className="flex flex-col gap-4">
+								{/* Basic Information Section */}
+								<div className="grid grid-cols-2 gap-4">
+									<div>
+										<p className="text-xs text-primary-6">First Name</p>
+										<Input
+											type="text"
+											className="focus:border-none mt-1"
+											value={editData.firstName}
+											onChange={(e) =>
+												setEditData({ ...editData, firstName: e.target.value })
+											}
+										/>
+									</div>
+									<div>
+										<p className="text-xs text-primary-6">Last Name</p>
+										<Input
+											type="text"
+											className="focus:border-none mt-1"
+											value={editData.lastName}
+											onChange={(e) =>
+												setEditData({ ...editData, lastName: e.target.value })
+											}
+										/>
+									</div>
+								</div>
+
+								{/* Financial Summary Section */}
+								<div className="border rounded-lg p-4">
+									<h3 className="text-sm font-semibold mb-3">
+										Financial Summary
+									</h3>
+									<div className="grid grid-cols-2 gap-4">
+										<div>
+											<p className="text-xs text-primary-6">Savings Balance</p>
+											<Input
+												type="number"
+												className="focus:border-none mt-1"
+												value={advancedEditData.savingsBalance}
+												onChange={(e) =>
+													setAdvancedEditData({
+														...advancedEditData,
+														savingsBalance: parseFloat(e.target.value) || 0,
+													})
+												}
+											/>
+										</div>
+										<div>
+											<p className="text-xs text-primary-6">
+												Total Investments
+											</p>
+											<Input
+												type="number"
+												className="focus:border-none mt-1"
+												value={advancedEditData.totalInvestment}
+												onChange={(e) =>
+													setAdvancedEditData({
+														...advancedEditData,
+														totalInvestment: parseFloat(e.target.value) || 0,
+													})
+												}
+											/>
+										</div>
+										<div>
+											<p className="text-xs text-primary-6">Total Loans</p>
+											<Input
+												type="number"
+												className="focus:border-none mt-1"
+												value={advancedEditData.totalLoans}
+												onChange={(e) =>
+													setAdvancedEditData({
+														...advancedEditData,
+														totalLoans: parseFloat(e.target.value) || 0,
+													})
+												}
+											/>
+										</div>
+										<div>
+											<p className="text-xs text-primary-6">Total Auctions</p>
+											<Input
+												type="number"
+												className="focus:border-none mt-1"
+												value={advancedEditData.totalAuctions}
+												onChange={(e) =>
+													setAdvancedEditData({
+														...advancedEditData,
+														totalAuctions: parseFloat(e.target.value) || 0,
+													})
+												}
+											/>
+										</div>
+									</div>
+								</div>
+
+								{/* Additional fields for financial data management would go here */}
+								<div className="text-sm text-gray-500">
+									Note: Full financial record management interface can be added
+									here for managing individual savings accounts, loans,
+									investments, etc.
+								</div>
+							</div>
+
+							<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
+							<div className="flex flex-row justify-end items-center gap-3 font-inter">
+								<Button
+									className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
+									onClick={closeAdvancedEditModal}>
+									Cancel
+								</Button>
+								<Button
+									className="bg-primary-1 text-white font-inter text-xs"
+									onClick={handleAdvancedEditCustomer}
+									disabled={isLoading}>
+									{isLoading ? "Updating..." : "Update Financial Data"}
 								</Button>
 							</div>
 						</div>

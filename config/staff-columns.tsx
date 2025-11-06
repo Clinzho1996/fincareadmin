@@ -51,6 +51,7 @@ const StaffTable = () => {
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
 	const [selectedRow, setSelectedRow] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [error, setError] = useState("");
 	const [tableData, setTableData] = useState<Staff[]>([]);
 	const [isEditModalOpen, setEditModalOpen] = useState(false);
 	const [editData, setEditData] = useState({
@@ -120,6 +121,12 @@ const StaffTable = () => {
 			const result = await response.json();
 
 			console.log("API Response:", result); // Debug log
+
+			if (response.status === 403) {
+				setError("You don't have permission to access this page.");
+				setIsLoading(false);
+				return;
+			}
 
 			if (result.status === "success") {
 				const formattedData = result.data.map((admin: any) => ({
@@ -383,6 +390,17 @@ const StaffTable = () => {
 			},
 		},
 	];
+
+	if (error) {
+		return (
+			<div className="container mx-auto px-4 py-8">
+				<div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+					<strong className="font-bold">Error: </strong>
+					<span className="block sm:inline">{error}</span>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<>

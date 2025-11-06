@@ -53,6 +53,7 @@ export default function AdminSettingsPage() {
 
 	const [settings, setSettings] = useState<LoanSettings | null>(null);
 	const [history, setHistory] = useState<SettingsHistory[]>([]);
+	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [message, setMessage] = useState<{
@@ -86,6 +87,12 @@ export default function AdminSettingsPage() {
 					interestRate: data.data.interestRate.toString(),
 					processingFeeRate: data.data.processingFeeRate.toString(),
 				});
+			}
+
+			if (res.status === 403) {
+				setError("You don't have permission to access this page.");
+				setLoading(false);
+				return;
 			}
 		} catch (error) {
 			console.error("Error fetching settings:", error);
@@ -180,6 +187,17 @@ export default function AdminSettingsPage() {
 					<Loader2 className="h-8 w-8 animate-spin" />
 				</div>
 			</>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="container mx-auto px-4 py-8">
+				<div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+					<strong className="font-bold">Error: </strong>
+					<span className="block sm:inline">{error}</span>
+				</div>
+			</div>
 		);
 	}
 

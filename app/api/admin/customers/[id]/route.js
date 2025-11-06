@@ -233,10 +233,12 @@ export async function PUT(request, { params }) {
 		}
 
 		const token = await getToken({ req: request });
-		if (!token) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+		if (!token || token.role !== "super_admin") {
+			return NextResponse.json(
+				{ error: "Unauthorized. Super admin access required." },
+				{ status: 403 }
+			);
 		}
-
 		const { id } = params;
 		if (!ObjectId.isValid(id)) {
 			return NextResponse.json(

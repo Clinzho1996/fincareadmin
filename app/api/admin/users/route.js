@@ -148,7 +148,7 @@ export async function GET(request) {
 	try {
 		const token = await getToken({ req: request });
 
-		if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
+		if (!token || token.role !== "super_admin") {
 			return NextResponse.json(
 				{ error: "Unauthorized. Super admin access required." },
 				{ status: 403 }

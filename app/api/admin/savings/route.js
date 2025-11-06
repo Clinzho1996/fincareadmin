@@ -107,7 +107,7 @@ export async function PATCH(request) {
 	try {
 		const token = await getToken({ req: request });
 
-		if (!token || (token.role !== "admin" && token.role !== "super_admin")) {
+		if (!token || token.role !== "super_admin") {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 		}
 
