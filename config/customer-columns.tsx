@@ -134,6 +134,9 @@ const CustomerTable = () => {
 		setDeleteModalOpen(false);
 	};
 
+	const refreshCustomerData = async () => {
+		await fetchCustomers();
+	};
 	// -------------- Fetch Customers --------------
 	const fetchCustomers = async () => {
 		if (!accessToken) return;
@@ -454,14 +457,18 @@ const CustomerTable = () => {
 			{isLoading ? (
 				<Loader />
 			) : (
-				<CustomerDataTable columns={columns} data={tableData} />
+				<CustomerDataTable
+					columns={columns}
+					data={tableData}
+					onStaffAdded={refreshCustomerData}
+				/>
 			)}
 			{isEditModalOpen && (
 				<Modal
 					isOpen={isEditModalOpen}
 					onClose={closeEditModal}
 					title="Edit Customer">
-					<div className="bg-white p-0 rounded-lg  transition-transform ease-in-out form">
+					<div className="bg-white p-0 rounded-lg  transition-transform ease-in-out overflow-y-auto w-full md:w-[500px] form">
 						<div className="mt-3 border-t-[1px] border-[#E2E4E9] pt-2">
 							<div className="flex flex-col gap-2">
 								<p className="text-xs text-primary-6">First Name</p>

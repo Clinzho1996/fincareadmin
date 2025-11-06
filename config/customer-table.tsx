@@ -50,6 +50,7 @@ import { toast } from "react-toastify";
 interface DataTableProps<TData, TValue> {
 	columns: ColumnDef<TData, TValue>[];
 	data: TData[];
+	onStaffAdded?: () => void;
 }
 
 interface ApiResponse {
@@ -70,6 +71,7 @@ interface ApiResponse {
 export function CustomerDataTable<TData, TValue>({
 	columns,
 	data,
+	onStaffAdded,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -195,28 +197,37 @@ export function CustomerDataTable<TData, TValue>({
 			});
 
 			if (response.status === 200 || response.status === 201) {
+				if (onStaffAdded) {
+				onStaffAdded();
+			} else {
+				// Fallback to local fetch if callback not provided
 				await fetchStaffs();
-
+			}
 				toast.success("Staff member added successfully!");
-
-				// Close the modal and reset form fields
 				closeModal();
 				setFirstName("");
 				setLastName("");
-				setEmail(" ");
+				setEmail("");
 				setPhone("");
 				setAddress("");
 			}
 		} catch (error: unknown) {
 			if (axios.isAxiosError(error)) {
-				console.log(
-					"Error Adding Staff:",
-					error.response?.data || error.message
-				);
-				toast.error(
-					error.response?.data?.message ||
-						"An error occurred. Please try again."
-				);
+				// Debug: log the exact error structure
+				console.log("Full error response:", error.response);
+				console.log("Error data:", error.response?.data);
+				console.log("Error message:", error.message);
+
+				// Try different possible error message locations
+				const errorMessage =
+					error.response?.data?.error || // if nested under error
+					error.response?.data?.message || // if nested under message
+					error.response?.data || // if direct string
+					error.message || // fallback to axios error message
+					"An error occurred. Please try again.";
+
+				console.log("Extracted error message:", errorMessage);
+				toast.error(errorMessage);
 			} else {
 				console.log("Unexpected error:", error);
 				toast.error("Unexpected error occurred.");

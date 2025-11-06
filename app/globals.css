@@ -108,11 +108,12 @@ body {
 }
 
 .select {
-	z-index: 20000 !important;
+	z-index: 20 !important;
 }
 
 .option {
-	z-index: 20000 !important;
+	z-index: 100 !important;
+	background-color: #ffffff;
 }
 .text-gray-300 {
 	color: #86898d;
@@ -147,6 +148,8 @@ body {
 
 .form {
 	width: 400px;
+	max-height: 600px;
+	overflow-y: auto;
 }
 .dropbg {
 	z-index: 10000 !important;

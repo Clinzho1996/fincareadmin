@@ -39,21 +39,6 @@ export type Staff = {
 	email: string;
 };
 
-interface ApiResponse {
-	id: string;
-	first_name: string;
-	last_name: string;
-	email: string;
-	picture: string | null;
-	staff_code: string;
-	role: string;
-	is_active: boolean;
-	last_logged_in: string | null;
-	created_at: string;
-	updated_at: string;
-	status?: string;
-}
-
 declare module "next-auth" {
 	interface Session {
 		accessToken?: string;
@@ -77,12 +62,19 @@ const StaffTable = () => {
 		role: "super_admin",
 	});
 
+	const refreshStaffData = async () => {
+		await fetchStaffs();
+	};
+
 	const openEditModal = (row: any) => {
 		const staff = row.original;
+		console.log("Editing staff:", staff); // Debug log
+
 		setEditData({
 			id: staff.id,
-			firstName: staff.name?.split(" ")[0] || "",
-			lastName: staff.name?.split(" ")[1] || "",
+			firstName: staff.firstName || staff.name?.split(" ")[0] || "",
+			lastName:
+				staff.lastName || staff.name?.split(" ").slice(1).join(" ") || "",
 			email: staff.email,
 			staffId: staff.staff,
 			role: staff.role,
@@ -127,10 +119,15 @@ const StaffTable = () => {
 			const response = await fetch("/api/admin/users");
 			const result = await response.json();
 
+			console.log("API Response:", result); // Debug log
+
 			if (result.status === "success") {
 				const formattedData = result.data.map((admin: any) => ({
 					id: admin._id,
 					name: admin.name,
+					firstName: admin.first_name || admin.name?.split(" ")[0] || "",
+					lastName:
+						admin.last_name || admin.name?.split(" ").slice(1).join(" ") || "",
 					email: admin.email,
 					role: admin.role,
 					staff: admin.staff_code || "N/A",
@@ -138,6 +135,11 @@ const StaffTable = () => {
 					date: admin.createdAt,
 				}));
 				setTableData(formattedData);
+			} else {
+				console.error("API returned error:", result.error);
+				toast.error(
+					"Failed to fetch staff: " + (result.error || "Unknown error")
+				);
 			}
 		} catch (error) {
 			console.error("Error fetching admins:", error);
@@ -387,7 +389,11 @@ const StaffTable = () => {
 			{isLoading ? (
 				<Loader />
 			) : (
-				<StaffDataTable columns={columns} data={tableData} />
+				<StaffDataTable
+					columns={columns}
+					data={tableData}
+					onStaffAdded={refreshStaffData}
+				/>
 			)}
 			{isEditModalOpen && (
 				<Modal
@@ -411,7 +417,7 @@ const StaffTable = () => {
 								<p className="text-xs text-primary-6">Last Name</p>
 								<Input
 									type="text"
-									placeholder="Enter Full Name"
+									placeholder="Enter Last Name"
 									className="focus:border-none mt-2"
 									value={editData.lastName}
 									onChange={(e) =>
@@ -437,6 +443,7 @@ const StaffTable = () => {
 									Cancel
 								</Button>
 								<Button
+									onClick={handleEditStaff}
 									className="bg-primary-1 text-white font-inter text-xs"
 									disabled={isLoading}>
 									{isLoading ? "Updating Staff..." : "Update Staff"}

@@ -33,7 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import {
 	ChevronLeft,
 	ChevronRight,
@@ -45,26 +45,16 @@ import React, { useEffect, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
 
-interface Staff {
-	_id: string;
-	firstName: string;
-	lastName: string;
-	email: string;
-	role: string;
-	staffCode: string;
-	isActive: boolean;
-	createdAt: string;
-	updatedAt: string;
-}
-
 interface DataTableProps<TData, TValue> {
 	columns: ColumnDef<TData, TValue>[];
 	data: TData[];
+	onStaffAdded?: () => void;
 }
 
 export function StaffDataTable<TData, TValue>({
 	columns,
 	data,
+	onStaffAdded,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -73,12 +63,10 @@ export function StaffDataTable<TData, TValue>({
 	const [columnVisibility, setColumnVisibility] =
 		React.useState<VisibilityState>({});
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-	const [selectedStatus, setSelectedStatus] = useState<string>("View All");
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 	const [generatedPassword, setGeneratedPassword] = useState("");
 	const [globalFilter, setGlobalFilter] = useState("");
 	const [isModalOpen, setModalOpen] = useState(false);
-	const [isEditModalOpen, setEditModalOpen] = useState(false);
 	const [tableData, setTableData] = useState<TData[]>(data);
 	const [isLoading, setIsLoading] = useState(false);
 	const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -88,7 +76,6 @@ export function StaffDataTable<TData, TValue>({
 	const [lastName, setLastName] = useState("");
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState("admin");
-	const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 	const [password, setPassword] = useState("");
 
 	// Sync `tableData` with `data` prop
@@ -99,12 +86,6 @@ export function StaffDataTable<TData, TValue>({
 	const openModal = () => setModalOpen(true);
 	const closeModal = () => {
 		setModalOpen(false);
-		resetForm();
-	};
-
-	const closeEditModal = () => {
-		setEditModalOpen(false);
-		setEditingStaff(null);
 		resetForm();
 	};
 
@@ -137,11 +118,27 @@ export function StaffDataTable<TData, TValue>({
 				throw new Error("Failed to fetch staff");
 			}
 
-			const data = await response.json();
-			setTableData(data.users || []);
+			const result = await response.json();
+
+			// Debug: log the response to see the actual structure
+			console.log("Staff API Response:", result);
+
+			// Fix: Use the correct property name based on your API response
+			// If your API returns { users: [...] } use result.users
+			// If it returns just the array directly, use result
+			const staffData = result.users || result.data?.users || result;
+
+			// Ensure we're setting an array
+			if (Array.isArray(staffData)) {
+				setTableData(staffData);
+			} else {
+				console.error("Expected array but got:", staffData);
+				setTableData([]);
+			}
 		} catch (error) {
 			console.error("Error fetching staff:", error);
 			toast.error("Failed to load staff data");
+			setTableData([]); // Set empty array on error
 		} finally {
 			setIsLoading(false);
 		}
@@ -197,122 +194,17 @@ export function StaffDataTable<TData, TValue>({
 				closeModal();
 			}
 
-			fetchStaff(); // Refresh the list
+			if (onStaffAdded) {
+				onStaffAdded();
+			} else {
+				// Fallback to local fetch if callback not provided
+				await fetchStaff();
+			}
 		} catch (error: any) {
 			console.error("Error adding staff:", error);
 			toast.error(error.message || "An error occurred. Please try again.");
 		} finally {
 			setIsLoading(false);
-		}
-	};
-
-	const handleUpdateStaff = async () => {
-		if (!editingStaff) return;
-
-		setIsLoading(true);
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				toast.error("Authentication required");
-				return;
-			}
-
-			const payload = {
-				firstName,
-				lastName,
-				email,
-				role,
-				...(password && { password }), // Only include password if provided
-			};
-
-			const response = await fetch(`/api/admin/users?id=${editingStaff._id}`, {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${accessToken}`,
-				},
-				body: JSON.stringify(payload),
-			});
-
-			const data = await response.json();
-
-			if (!response.ok) {
-				throw new Error(data.error || "Failed to update staff");
-			}
-
-			toast.success("Staff member updated successfully!");
-			closeEditModal();
-			fetchStaff(); // Refresh the list
-		} catch (error: any) {
-			console.error("Error updating staff:", error);
-			toast.error(error.message || "An error occurred. Please try again.");
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const bulkDeleteStaff = async () => {
-		const selectedIds = Object.keys(rowSelection).map(
-			(index) => (tableData[parseInt(index)] as any)?._id
-		);
-
-		if (selectedIds.length === 0) {
-			toast.warn("No staff selected for deletion.");
-			return;
-		}
-
-		if (
-			!confirm(
-				`Are you sure you want to delete ${selectedIds.length} selected staff members?`
-			)
-		) {
-			return;
-		}
-
-		try {
-			const session = await getSession();
-			const accessToken = session?.accessToken;
-
-			if (!accessToken) {
-				toast.error("Authentication required");
-				return;
-			}
-
-			// Delete each selected staff member
-			for (const id of selectedIds) {
-				const response = await fetch(`/api/admin/users?id=${id}`, {
-					method: "DELETE",
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				});
-
-				if (!response.ok) {
-					throw new Error(`Failed to delete staff member ${id}`);
-				}
-			}
-
-			toast.success("Selected staff members deleted successfully!");
-			setRowSelection({});
-			fetchStaff(); // Refresh the list
-		} catch (error: any) {
-			console.error("Error bulk deleting staff:", error);
-			toast.error(error.message || "Failed to delete staff members");
-		}
-	};
-
-	const handleStatusFilter = (status: string) => {
-		setSelectedStatus(status);
-
-		if (status === "View All") {
-			setTableData(data);
-		} else {
-			const filteredData = data.filter(
-				(staff: any) => staff.isActive === (status === "Active")
-			);
-			setTableData(filteredData as TData[]);
 		}
 	};
 
@@ -375,31 +267,6 @@ export function StaffDataTable<TData, TValue>({
 									value={email}
 									onChange={(e) => setEmail(e.target.value)}
 								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">Password</p>
-								<Input
-									type="password"
-									placeholder="Enter Password (optional)"
-									className="focus:border-none mt-1"
-									value={password}
-									onChange={(e) => setPassword(e.target.value)}
-								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">Role</p>
-								<Select value={role} onValueChange={setRole}>
-									<SelectTrigger className="w-full mt-1">
-										<SelectValue placeholder="Select Role" />
-									</SelectTrigger>
-									<SelectContent className="bg-white z-10">
-										<SelectItem value="super_admin">Super Admin</SelectItem>
-										<SelectItem value="admin">Admin</SelectItem>
-										<SelectItem value="support">Support</SelectItem>
-									</SelectContent>
-								</Select>
 							</div>
 						</div>
 
@@ -471,93 +338,6 @@ export function StaffDataTable<TData, TValue>({
 				</div>
 			</Modal>
 
-			{/* Edit Staff Modal */}
-			<Modal
-				isOpen={isEditModalOpen}
-				onClose={closeEditModal}
-				title="Edit Admin User">
-				<div className="bg-white p-0 rounded-lg transition-transform ease-in-out form">
-					<div className="mt-3 pt-2">
-						<div className="flex flex-col gap-4">
-							<div>
-								<p className="text-xs text-primary-6">First Name</p>
-								<Input
-									type="text"
-									placeholder="Enter First Name"
-									className="focus:border-none mt-1"
-									value={firstName}
-									onChange={(e) => setFirstName(e.target.value)}
-								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">Last Name</p>
-								<Input
-									type="text"
-									placeholder="Enter Last Name"
-									className="focus:border-none mt-1"
-									value={lastName}
-									onChange={(e) => setLastName(e.target.value)}
-								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">Email Address</p>
-								<Input
-									type="email"
-									placeholder="Enter Email Address"
-									className="focus:border-none mt-1"
-									value={email}
-									onChange={(e) => setEmail(e.target.value)}
-								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">
-									New Password (optional)
-								</p>
-								<Input
-									type="password"
-									placeholder="Enter new password to update"
-									className="focus:border-none mt-1"
-									value={password}
-									onChange={(e) => setPassword(e.target.value)}
-								/>
-							</div>
-
-							<div>
-								<p className="text-xs text-primary-6">Role</p>
-								<Select value={role} onValueChange={setRole}>
-									<SelectTrigger className="w-full mt-1 select">
-										<SelectValue placeholder="Select Role" />
-									</SelectTrigger>
-									<SelectContent className="bg-white select option">
-										<SelectItem value="super_admin">Super Admin</SelectItem>
-										<SelectItem value="admin">Admin</SelectItem>
-										<SelectItem value="support">Support</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-
-						<hr className="mt-4 mb-4 text-[#9F9E9E40]" color="#9F9E9E40" />
-						<div className="flex flex-row justify-end items-center gap-3 font-inter">
-							<Button
-								className="border-[#E8E8E8] border-[1px] text-primary-6 text-xs"
-								onClick={closeEditModal}>
-								Cancel
-							</Button>
-							<Button
-								className="bg-primary-1 text-white font-inter text-xs"
-								onClick={handleUpdateStaff}
-								disabled={isLoading}>
-								{isLoading ? "Updating User..." : "Update User"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			</Modal>
-
 			<div className="p-3 flex flex-row justify-between border-b-[1px] border-[#E2E4E9] bg-white items-center gap-20 max-w-full rounded-lg">
 				<div className="p-3 flex flex-row justify-start items-center gap-3 w-full">
 					<Input
@@ -570,15 +350,6 @@ export function StaffDataTable<TData, TValue>({
 					<div className="w-[250px]">
 						<DateRangePicker dateRange={dateRange} onSelect={setDateRange} />
 					</div>
-
-					{Object.keys(rowSelection).length > 0 && (
-						<Button
-							variant="destructive"
-							onClick={bulkDeleteStaff}
-							disabled={isLoading}>
-							<IconTrash /> Delete Selected
-						</Button>
-					)}
 
 					<Button
 						className="bg-primary-1 text-white font-inter"

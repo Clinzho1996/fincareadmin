@@ -221,9 +221,9 @@ export async function GET(request, { params }) {
 }
 
 // UPDATE customer
+// PUT /api/admin/customers/[id] - Comprehensive customer update
 export async function PUT(request, { params }) {
 	try {
-		// First authenticate with your custom middleware
 		const authResult = await authenticate(request);
 		if (authResult.error) {
 			return NextResponse.json(
@@ -232,43 +232,285 @@ export async function PUT(request, { params }) {
 			);
 		}
 
-		// Then check if user is admin using NextAuth token
 		const token = await getToken({ req: request });
-		if (!token || (token.role !== "super_admin" && token.role !== "admin")) {
+		if (!token) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+		}
+
+		const { id } = params;
+		if (!ObjectId.isValid(id)) {
 			return NextResponse.json(
-				{ error: "Unauthorized. Admin access required." },
-				{ status: 403 }
+				{ error: "Invalid customer ID" },
+				{ status: 400 }
 			);
 		}
 
-		const { db } = await connectToDatabase();
-		const { id } = params;
 		const body = await request.json();
-
-		// Extract allowed fields to update
 		const {
+			// Basic Information
 			firstName,
 			lastName,
 			email,
 			phone,
-			address,
+			otherName,
+			bvn,
+			dob,
 			gender,
-			accountNumber,
-			bank,
+			profession,
+			source_of_income,
+
+			// Bank Information
+			bank_name,
+			account_number,
+			account_name,
+			address,
+
+			// Membership Information
+			membershipLevel,
+			membershipStatus,
+			kycCompleted,
+
+			// Financial Data (Super Admin only)
+			savings = [],
+			loans = [],
+			investments = [],
+			auctions = [],
+
+			// Summary Financial Data
+			savingsBalance,
+			totalInvestment,
+			totalLoans,
+			totalAuctions,
+
+			// Additional flags
+			isExistingCustomer,
+			registrationDate,
 		} = body;
 
-		const updateData = {};
-		if (firstName) updateData.firstName = firstName;
-		if (lastName) updateData.lastName = lastName;
-		if (email) updateData.email = email;
-		if (phone) updateData.phone = phone;
-		if (address) updateData.address = address;
-		if (gender) updateData.gender = gender;
-		if (accountNumber) updateData.accountNumber = accountNumber;
-		if (bank) updateData.bank = bank;
+		const { db } = await connectToDatabase();
 
-		updateData.updatedAt = new Date();
+		// Check if customer exists
+		const existingCustomer = await db
+			.collection("users")
+			.findOne({ _id: new ObjectId(id) });
+		if (!existingCustomer) {
+			return NextResponse.json(
+				{ error: "Customer not found" },
+				{ status: 404 }
+			);
+		}
 
+		// Check if email/phone already exists for other customers
+		if (email && email !== existingCustomer.email) {
+			const emailExists = await db.collection("users").findOne({
+				email,
+				_id: { $ne: new ObjectId(id) },
+			});
+			if (emailExists) {
+				return NextResponse.json(
+					{ error: "User with this email already exists" },
+					{ status: 409 }
+				);
+			}
+		}
+
+		if (phone && phone !== existingCustomer.phone) {
+			const phoneExists = await db.collection("users").findOne({
+				phone,
+				_id: { $ne: new ObjectId(id) },
+			});
+			if (phoneExists) {
+				return NextResponse.json(
+					{ error: "User with this phone number already exists" },
+					{ status: 409 }
+				);
+			}
+		}
+
+		// Prepare basic update data (available to all admins)
+		const updateData = {
+			...(firstName && { firstName }),
+			...(lastName && { lastName }),
+			...(otherName !== undefined && { otherName }),
+			...(email && { email }),
+			...(phone && { phone }),
+			...(bvn !== undefined && { bvn }),
+			...(dob && { dob: new Date(dob) }),
+			...(gender && { gender }),
+			...(profession && { profession }),
+			...(source_of_income && { source_of_income }),
+			...(bank_name !== undefined && { bank_name }),
+			...(account_number !== undefined && { account_number }),
+			...(account_name !== undefined && { account_name }),
+			...(address !== undefined && { address }),
+			...(membershipLevel && { membershipLevel }),
+			...(membershipStatus && { membershipStatus }),
+			...(kycCompleted !== undefined && { kycCompleted }),
+			updatedAt: new Date(),
+			lastUpdatedBy: {
+				adminId: authResult.userId || "unknown",
+				adminEmail: token.email || "unknown",
+				timestamp: new Date(),
+			},
+		};
+
+		// Remove undefined values
+		Object.keys(updateData).forEach(
+			(key) => updateData[key] === undefined && delete updateData[key]
+		);
+
+		// Financial data operations (Super Admin only)
+		let financialOperations = [];
+		let financialResults = {};
+
+		// Check if user is super admin for financial operations
+		const isSuperAdmin = token.role === "super_admin";
+
+		if (isSuperAdmin) {
+			console.log("Super admin detected - processing financial data");
+
+			// Process savings
+			if (savings && savings.length > 0) {
+				const savingsOperations = savings.map((saving) => ({
+					updateOne: {
+						filter: {
+							userId: new ObjectId(id),
+							_id: saving._id ? new ObjectId(saving._id) : new ObjectId(),
+						},
+						update: {
+							$set: {
+								...saving,
+								userId: new ObjectId(id),
+								updatedAt: new Date(),
+								lastUpdatedBy: {
+									adminId: authResult.userId,
+									adminEmail: token.email,
+									timestamp: new Date(),
+								},
+							},
+						},
+						upsert: true,
+					},
+				}));
+				financialOperations.push(...savingsOperations);
+			}
+
+			// Process loans
+			if (loans && loans.length > 0) {
+				const loanOperations = loans.map((loan) => ({
+					updateOne: {
+						filter: {
+							userId: new ObjectId(id),
+							_id: loan._id ? new ObjectId(loan._id) : new ObjectId(),
+						},
+						update: {
+							$set: {
+								...loan,
+								userId: new ObjectId(id),
+								updatedAt: new Date(),
+								lastUpdatedBy: {
+									adminId: authResult.userId,
+									adminEmail: token.email,
+									timestamp: new Date(),
+								},
+							},
+						},
+						upsert: true,
+					},
+				}));
+				financialOperations.push(...loanOperations);
+			}
+
+			// Process investments
+			if (investments && investments.length > 0) {
+				const investmentOperations = investments.map((investment) => ({
+					updateOne: {
+						filter: {
+							userId: new ObjectId(id),
+							_id: investment._id
+								? new ObjectId(investment._id)
+								: new ObjectId(),
+						},
+						update: {
+							$set: {
+								...investment,
+								userId: new ObjectId(id),
+								updatedAt: new Date(),
+								lastUpdatedBy: {
+									adminId: authResult.userId,
+									adminEmail: token.email,
+									timestamp: new Date(),
+								},
+							},
+						},
+						upsert: true,
+					},
+				}));
+				financialOperations.push(...investmentOperations);
+			}
+
+			// Process auctions
+			if (auctions && auctions.length > 0) {
+				const auctionOperations = auctions.map((auction) => ({
+					updateOne: {
+						filter: {
+							userId: new ObjectId(id),
+							_id: auction._id ? new ObjectId(auction._id) : new ObjectId(),
+						},
+						update: {
+							$set: {
+								...auction,
+								userId: new ObjectId(id),
+								updatedAt: new Date(),
+								lastUpdatedBy: {
+									adminId: authResult.userId,
+									adminEmail: token.email,
+									timestamp: new Date(),
+								},
+							},
+						},
+						upsert: true,
+					},
+				}));
+				financialOperations.push(...auctionOperations);
+			}
+
+			// Update summary financial data if provided
+			if (savingsBalance !== undefined)
+				updateData.savingsBalance = savingsBalance;
+			if (totalInvestment !== undefined)
+				updateData.totalInvestment = totalInvestment;
+			if (totalLoans !== undefined) updateData.totalLoans = totalLoans;
+			if (totalAuctions !== undefined) updateData.totalAuctions = totalAuctions;
+			if (isExistingCustomer !== undefined)
+				updateData.isExistingCustomer = isExistingCustomer;
+
+			// Execute financial operations if any
+			if (financialOperations.length > 0) {
+				if (savings && savings.length > 0) {
+					financialResults.savings = await db
+						.collection("savings")
+						.bulkWrite(savingsOperations);
+				}
+				if (loans && loans.length > 0) {
+					financialResults.loans = await db
+						.collection("loans")
+						.bulkWrite(loanOperations);
+				}
+				if (investments && investments.length > 0) {
+					financialResults.investments = await db
+						.collection("investments")
+						.bulkWrite(investmentOperations);
+				}
+				if (auctions && auctions.length > 0) {
+					financialResults.auctions = await db
+						.collection("auctions")
+						.bulkWrite(auctionOperations);
+				}
+			}
+		}
+
+		// Update customer document
 		const result = await db
 			.collection("users")
 			.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
@@ -282,12 +524,16 @@ export async function PUT(request, { params }) {
 
 		return NextResponse.json({
 			status: "success",
-			message: "Customer updated successfully",
+			message:
+				"Customer updated successfully" +
+				(isSuperAdmin ? " with financial records" : ""),
+			financialOperations: isSuperAdmin ? financialResults : undefined,
+			updatedFields: Object.keys(updateData),
 		});
 	} catch (error) {
 		console.error("PUT /api/admin/customers/[id] error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error: " + error.message },
 			{ status: 500 }
 		);
 	}
