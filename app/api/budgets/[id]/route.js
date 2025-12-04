@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
+// app/api/budgets/[id]/route.js - GET endpoint
 export async function GET(request, { params }) {
 	try {
 		const authResult = await authenticate(request);
@@ -21,6 +22,8 @@ export async function GET(request, { params }) {
 		}
 
 		const { db } = await connectToDatabase();
+
+		// Get the full document with _id
 		const budget = await db.collection("budgets").findOne({
 			_id: new ObjectId(id),
 			userId: authResult.userId,
@@ -29,6 +32,8 @@ export async function GET(request, { params }) {
 		if (!budget) {
 			return NextResponse.json({ error: "Budget not found" }, { status: 404 });
 		}
+
+		console.log("Budget from DB:", budget); // Debug log
 
 		return NextResponse.json({ budget });
 	} catch (error) {

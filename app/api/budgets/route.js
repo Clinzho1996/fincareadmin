@@ -3,6 +3,7 @@ import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 
+// app/api/budgets/route.js - GET endpoint
 export async function GET(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -14,10 +15,14 @@ export async function GET(request) {
 		}
 
 		const { db } = await connectToDatabase();
+
+		// Get ALL fields including _id
 		const budgets = await db
 			.collection("budgets")
 			.find({ userId: authResult.userId })
 			.toArray();
+
+		console.log("Budgets from DB:", budgets); // Debug log
 
 		return NextResponse.json({ budgets });
 	} catch (error) {
