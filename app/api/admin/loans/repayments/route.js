@@ -24,7 +24,7 @@ export async function GET(request) {
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
-				{ status: authResult.status }
+				{ status: authResult.status },
 			);
 		}
 
@@ -48,7 +48,7 @@ export async function GET(request) {
 		const collections = await db.listCollections().toArray();
 		console.log(
 			"Available collections:",
-			collections.map((c) => c.name)
+			collections.map((c) => c.name),
 		);
 
 		// Check both possible collection names
@@ -135,7 +135,7 @@ export async function GET(request) {
 		console.error("Admin GET repayments error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error: " + error.message },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
@@ -147,7 +147,7 @@ export async function PATCH(request) {
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
-				{ status: authResult.status }
+				{ status: authResult.status },
 			);
 		}
 
@@ -158,7 +158,7 @@ export async function PATCH(request) {
 		if (!repaymentId || !status || !["approved", "rejected"].includes(status)) {
 			return NextResponse.json(
 				{ error: "Valid repayment ID and status are required" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -172,7 +172,7 @@ export async function PATCH(request) {
 		if (!repayment) {
 			return NextResponse.json(
 				{ error: "Repayment not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
@@ -235,7 +235,7 @@ export async function PATCH(request) {
 								repaymentId: repayment._id,
 							},
 						},
-					}
+					},
 				);
 
 				console.log("Loan updated successfully");
@@ -250,8 +250,7 @@ export async function PATCH(request) {
 		console.error("Admin PATCH repayment error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error: " + error.message },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
-x
