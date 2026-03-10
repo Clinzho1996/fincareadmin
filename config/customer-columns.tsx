@@ -62,6 +62,8 @@ export type Customer = {
 	source_of_income?: string;
 	kycCompleted?: boolean;
 	isExistingCustomer?: boolean;
+	activeLoans?: number;
+	pendingLoans?: number;
 };
 
 declare module "next-auth" {
@@ -278,7 +280,7 @@ const CustomerTable = () => {
 				},
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
-				}
+				},
 			);
 			toast.success("Customer updated successfully.");
 			fetchCustomers();
@@ -335,7 +337,7 @@ const CustomerTable = () => {
 				payload,
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
-				}
+				},
 			);
 
 			console.log("✅ API Response:", response.data);
@@ -389,14 +391,14 @@ const CustomerTable = () => {
 				{ action: "suspend" },
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
-				}
+				},
 			);
 			setTableData((prev) =>
 				prev.map((customer) =>
 					customer._id === id
 						? { ...customer, membershipStatus: "suspended" }
-						: customer
-				)
+						: customer,
+				),
 			);
 			toast.success("Customer suspended successfully.");
 		} catch (error) {
@@ -415,14 +417,14 @@ const CustomerTable = () => {
 				{ action: "reactivate" },
 				{
 					headers: { Authorization: `Bearer ${accessToken}` },
-				}
+				},
 			);
 			setTableData((prev) =>
 				prev.map((customer) =>
 					customer._id === id
 						? { ...customer, membershipStatus: "approved" }
-						: customer
-				)
+						: customer,
+				),
 			);
 			toast.success("Customer reactivated successfully.");
 		} catch (error) {
@@ -480,15 +482,28 @@ const CustomerTable = () => {
 				);
 			},
 		},
+		// In your CustomerTable component, update the columns definition
 		{
 			accessorKey: "totalLoans",
 			header: "Total Loans",
 			cell: ({ row }) => {
-				const loans = row.original.totalLoans || 0;
+				const customer = row.original;
+				// Check both possible locations for loan data
+				const loans = customer.totalLoans || 0;
+				const activeLoans = customer.activeLoans || 0;
+				const pendingLoans = customer.pendingLoans || 0;
+
 				return (
-					<span className="text-xs text-primary-6">
-						{formatCurrency(loans)}
-					</span>
+					<div className="flex flex-col">
+						<span className="text-xs text-primary-6 font-semibold">
+							{formatCurrency(loans)}
+						</span>
+						{(activeLoans ?? 0) > 0 && (
+							<span className="text-xs text-green-600">
+								Active: {formatCurrency(activeLoans ?? 0)}
+							</span>
+						)}
+					</div>
 				);
 			},
 		},

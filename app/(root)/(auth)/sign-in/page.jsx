@@ -23,11 +23,11 @@ export default function AdminLogin() {
 			status === "authenticated" &&
 			(session?.user?.role === "admin" || session?.user?.role === "super_admin")
 		) {
-			toast.success("Admin login successful!");
 			router.push(callbackUrl);
 		}
 	}, [status, session, callbackUrl, router]);
 
+	if (status === "loading") return null;
 	const handleSubmit = async (event) => {
 		event.preventDefault();
 
