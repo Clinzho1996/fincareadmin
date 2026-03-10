@@ -1,0 +1,30 @@
+name: Daily Interest Accrual
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  accrue-interest:
+    name: Accrue Daily Interest
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Call interest accrual API
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail \
+            "${{ secrets.API_BASE_URL }}/api/cron/accrue-interest"
+      
+      - name: Log success
+        if: success()
+        run: echo "✅ Interest accrual completed successfully"
+      
+      - name: Log failure
+        if: failure()
+        run: echo "❌ Interest accrual failed"
