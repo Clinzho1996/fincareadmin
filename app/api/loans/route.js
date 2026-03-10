@@ -286,6 +286,10 @@ export async function POST(request) {
 					);
 				}
 
+				// First, try to get savings from the savings collection
+				let totalGuarantorSavings = 0;
+
+				// Method 1: Check savings collection
 				const guarantorSavings = await db
 					.collection("savings")
 					.find({
@@ -293,10 +297,73 @@ export async function POST(request) {
 					})
 					.toArray();
 
-				const totalGuarantorSavings = guarantorSavings.reduce(
-					(sum, saving) => sum + Number(saving.currentBalance || 0),
-					0,
-				);
+				if (guarantorSavings && guarantorSavings.length > 0) {
+					totalGuarantorSavings = guarantorSavings.reduce(
+						(sum, saving) =>
+							sum + Number(saving.currentBalance || saving.amount || 0),
+						0,
+					);
+					console.log(
+						`Guarantor savings from collection: ${totalGuarantorSavings}`,
+					);
+				}
+
+				// Method 2: If no savings found, check the user document directly
+				if (totalGuarantorSavings === 0) {
+					const guarantorUserRecord = await db.collection("users").findOne({
+						_id: new ObjectId(guarantor.userId),
+					});
+
+					if (guarantorUserRecord) {
+						// Check various possible field names for savings
+						totalGuarantorSavings =
+							guarantorUserRecord.savingsBalance ||
+							guarantorUserRecord.totalSavings ||
+							guarantorUserRecord.savings ||
+							0;
+
+						console.log(
+							`Guarantor savings from user record: ${totalGuarantorSavings}`,
+						);
+					}
+				}
+
+				// Method 3: Check investments as alternative collateral
+				let totalGuarantorInvestments = 0;
+				if (totalGuarantorSavings < guarantorCoverageAmount * 0.5) {
+					const guarantorInvestments = await db
+						.collection("investments")
+						.find({
+							userId: guarantor.userId,
+							status: "active",
+						})
+						.toArray();
+
+					totalGuarantorInvestments = guarantorInvestments.reduce(
+						(sum, inv) => sum + Number(inv.currentValue || inv.amount || 0),
+						0,
+					);
+
+					console.log(`Guarantor investments: ${totalGuarantorInvestments}`);
+				}
+
+				// Use combined savings + investments for eligibility check
+				const totalGuarantorAssets =
+					totalGuarantorSavings + totalGuarantorInvestments;
+
+				if (
+					guarantor.coverage > 0 &&
+					totalGuarantorAssets < guarantorCoverageAmount * 0.5
+				) {
+					return NextResponse.json(
+						{
+							error: `Guarantor ${i + 1} (${guarantorUser.firstName} ${
+								guarantorUser.lastName
+							}) does not meet the minimum savings/investment requirement of ${(guarantorCoverageAmount * 0.5).toFixed(2)} for the requested coverage. Current assets: ${totalGuarantorAssets.toFixed(2)}`,
+						},
+						{ status: 400 },
+					);
+				}
 
 				const guarantorCoverageAmount =
 					(Number(loanAmount) * guarantor.coverage) / 100;
@@ -324,7 +391,9 @@ export async function POST(request) {
 					phone: guarantorUser.phone,
 					coverage: Number(guarantor.coverage),
 					coverageAmount: guarantorCoverageAmount,
-					savingsBalance: totalGuarantorSavings,
+					savingsBalance: totalGuarantorSavings, // Store actual savings
+					investmentsBalance: totalGuarantorInvestments, // Add investments
+					totalAssets: totalGuarantorAssets, // Combined total
 					profession: guarantorUser.profession || "Not specified",
 					relationship: guarantor.relationship || "Colleague",
 					approved: false,
