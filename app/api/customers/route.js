@@ -1,4 +1,4 @@
-// app/api/customers/route.js
+// app/api/customers/route.js - UPDATED VERSION
 export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
@@ -13,7 +13,7 @@ export async function GET(request) {
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
-				{ status: authResult.status }
+				{ status: authResult.status },
 			);
 		}
 
@@ -22,7 +22,7 @@ export async function GET(request) {
 
 		// Get pagination parameters
 		const page = parseInt(searchParams.get("page")) || 1;
-		const limit = parseInt(searchParams.get("limit")) || 20; // Increased limit for mobile
+		const limit = parseInt(searchParams.get("limit")) || 20;
 		const skip = (page - 1) * limit;
 
 		// Get filter parameters
@@ -69,72 +69,57 @@ export async function GET(request) {
 					passwordResetRequired: 0,
 				},
 			})
-			.sort({ firstName: 1, lastName: 1 }) // Sort alphabetically for easier browsing
+			.sort({ firstName: 1, lastName: 1 })
 			.skip(skip)
 			.limit(limit)
 			.toArray();
 
-		// Calculate basic stats for each user (simplified for mobile)
-		const usersWithBasicStats = await Promise.all(
-			users.map(async (user) => {
-				const userIdString = user._id.toString();
+		console.log(`Found ${users.length} users`);
 
-				// Get savings balance (simplified query)
-				const savings = await db
-					.collection("savings")
-					.find({ userId: userIdString })
-					.toArray();
+		// Use the stored values from the user document instead of calculating
+		const usersWithBasicStats = users.map((user) => {
+			// Get the stored values directly from the user document
+			const totalSavings = user.savingsBalance || 0;
+			const totalInvestment = user.totalInvestment || 0;
+			const hasActiveLoans = (user.totalLoans || 0) > 0;
 
-				const totalSavings = savings.reduce(
-					(sum, s) => sum + Number(s.currentBalance || 0),
-					0
-				);
+			console.log(`User ${user.firstName} ${user.lastName}:`, {
+				savingsBalance: totalSavings,
+				totalInvestment: totalInvestment,
+				totalLoans: user.totalLoans,
+			});
 
-				// Get investments (simplified query)
-				const investments = await db
-					.collection("investments")
-					.find({ userId: userIdString })
-					.toArray();
-
-				const totalInvestment = investments.reduce(
-					(sum, i) => sum + Number(i.amount || 0),
-					0
-				);
-
-				// Check if user has active loans (simplified)
-				const activeLoans = await db.collection("loans").countDocuments({
-					userId: userIdString,
-					status: { $in: ["approved", "active", "completed"] },
-				});
-
-				return {
-					_id: user._id,
-					firstName: user.firstName,
-					lastName: user.lastName,
-					email: user.email,
-					phone: user.phone,
-					profession: user.profession || "Not specified",
-					membershipLevel: user.membershipLevel,
-					membershipStatus: user.membershipStatus,
-					createdAt: user.createdAt,
-					// Basic stats for guarantor eligibility
-					stats: {
-						totalSavings,
-						totalInvestment,
-						hasActiveLoans: activeLoans > 0,
-						savingsCount: savings.length,
-						investmentsCount: investments.length,
-					},
-					// Eligibility indicator
-					isEligibleGuarantor: totalSavings > 0, // Basic eligibility check
-					eligibilityScore: calculateEligibilityScore(
-						totalSavings,
-						totalInvestment,
-						activeLoans
-					),
-				};
-			})
-		);
+			return {
+				_id: user._id,
+				firstName: user.firstName,
+				lastName: user.lastName,
+				email: user.email,
+				phone: user.phone,
+				profession: user.profession || "Not specified",
+				membershipLevel: user.membershipLevel,
+				membershipStatus: user.membershipStatus,
+				createdAt: user.createdAt,
+				// Use stored values directly
+				stats: {
+					totalSavings,
+					totalInvestment,
+					hasActiveLoans,
+					savingsCount: user.savingsCount || 0,
+					investmentsCount: user.investmentsCount || 0,
+				},
+				// Also include at top level for easier access
+				savingsBalance: totalSavings,
+				totalInvestment: totalInvestment,
+				totalLoans: user.totalLoans || 0,
+				// Eligibility indicator
+				isEligibleGuarantor: totalSavings > 0 && !hasActiveLoans,
+				eligibilityScore: calculateEligibilityScore(
+					totalSavings,
+					totalInvestment,
+					hasActiveLoans,
+				),
+			};
+		});
 
 		console.log(`Returning ${usersWithBasicStats.length} users for mobile app`);
 
@@ -156,7 +141,7 @@ export async function GET(request) {
 		console.error("GET /api/customers error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error: " + error.message },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
@@ -165,19 +150,16 @@ export async function GET(request) {
 function calculateEligibilityScore(savings, investments, hasActiveLoans) {
 	let score = 0;
 
-	// Savings contribute to score
-	if (savings >= 1000000) score += 3; // High savings
-	else if (savings >= 500000) score += 2; // Medium savings
-	else if (savings >= 100000) score += 1; // Low savings
+	if (savings >= 1000000) score += 3;
+	else if (savings >= 500000) score += 2;
+	else if (savings >= 100000) score += 1;
 
-	// Investments contribute to score
 	if (investments >= 500000) score += 2;
 	else if (investments >= 100000) score += 1;
 
-	// Active loans reduce score slightly
 	if (hasActiveLoans) score -= 1;
 
-	return Math.max(0, score); // Ensure score doesn't go below 0
+	return Math.max(0, score);
 }
 
 // Optional: Get single user by ID for detailed view
@@ -187,7 +169,7 @@ export async function POST(request) {
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
-				{ status: authResult.status }
+				{ status: authResult.status },
 			);
 		}
 
@@ -197,7 +179,7 @@ export async function POST(request) {
 		if (!userId) {
 			return NextResponse.json(
 				{ error: "User ID is required" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -215,85 +197,40 @@ export async function POST(request) {
 					adminCreated: 0,
 					passwordResetRequired: 0,
 				},
-			}
+			},
 		);
 
 		if (!user) {
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
 		}
 
-		// Get detailed stats for this user
-		const userIdString = user._id.toString();
-
-		const savings = await db
-			.collection("savings")
-			.find({ userId: userIdString })
-			.toArray();
-
-		const investments = await db
-			.collection("investments")
-			.find({ userId: userIdString })
-			.toArray();
-
-		const loans = await db
-			.collection("loans")
-			.find({
-				userId: userIdString,
-				status: { $in: ["approved", "active", "completed"] },
-			})
-			.toArray();
-
-		const totalSavings = savings.reduce(
-			(sum, s) => sum + Number(s.currentBalance || 0),
-			0
-		);
-
-		const totalInvestment = investments.reduce(
-			(sum, i) => sum + Number(i.amount || 0),
-			0
-		);
-
-		const totalActiveLoans = loans.reduce(
-			(sum, l) => sum + Number(l.loanAmount || 0),
-			0
-		);
+		// Use stored values from user document
+		const totalSavings = user.savingsBalance || 0;
+		const totalInvestment = user.totalInvestment || 0;
+		const totalLoans = user.totalLoans || 0;
 
 		const userWithDetails = {
 			...user,
 			detailedStats: {
 				totalSavings,
 				totalInvestment,
-				totalActiveLoans,
-				savingsAccounts: savings.length,
-				investmentPlans: investments.length,
-				activeLoans: loans.length,
-				savingsBreakdown: savings.map((s) => ({
-					type: s.type,
-					balance: s.currentBalance,
-					createdAt: s.createdAt,
-				})),
-				investmentBreakdown: investments.map((i) => ({
-					plan: i.planName,
-					amount: i.amount,
-					duration: i.duration,
-					createdAt: i.createdAt,
-				})),
+				totalActiveLoans: totalLoans,
 			},
 			guarantorEligibility: {
 				isEligible: totalSavings > 0,
 				eligibilityScore: calculateEligibilityScore(
 					totalSavings,
 					totalInvestment,
-					loans.length > 0
+					totalLoans > 0,
 				),
 				recommendedMaxCoverage: calculateRecommendedMaxCoverage(
 					totalSavings,
-					totalInvestment
+					totalInvestment,
 				),
 				riskLevel: calculateRiskLevel(
 					totalSavings,
 					totalInvestment,
-					loans.length
+					totalLoans > 0 ? 1 : 0,
 				),
 			},
 		};
@@ -306,7 +243,7 @@ export async function POST(request) {
 		console.error("POST /api/customers error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error: " + error.message },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
@@ -315,12 +252,12 @@ export async function POST(request) {
 function calculateRecommendedMaxCoverage(savings, investments) {
 	const totalAssets = savings + investments;
 
-	if (totalAssets >= 2000000) return 100; // Can cover up to 100%
-	else if (totalAssets >= 1000000) return 80; // Can cover up to 80%
-	else if (totalAssets >= 500000) return 60; // Can cover up to 60%
-	else if (totalAssets >= 200000) return 40; // Can cover up to 40%
-	else if (totalAssets >= 100000) return 20; // Can cover up to 20%
-	else return 10; // Minimum coverage
+	if (totalAssets >= 2000000) return 100;
+	else if (totalAssets >= 1000000) return 80;
+	else if (totalAssets >= 500000) return 60;
+	else if (totalAssets >= 200000) return 40;
+	else if (totalAssets >= 100000) return 20;
+	else return 10;
 }
 
 // Helper function to calculate risk level
