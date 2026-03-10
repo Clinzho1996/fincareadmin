@@ -198,7 +198,7 @@ export async function POST(request) {
 			phone: user.phone,
 		});
 
-		// Process guarantors
+		// Process guarantors - FIXED: Simplified to avoid variable naming conflicts
 		let guarantorDetails = [];
 		let totalGuarantorCoverage = 0;
 
@@ -212,45 +212,47 @@ export async function POST(request) {
 				);
 			}
 
-			for (let i = 0; i < guarantors.length; i++) {
-				const guarantor = guarantors[i];
+			// Process each guarantor
+			for (let idx = 0; idx < guarantors.length; idx++) {
+				const g = guarantors[idx]; // Use 'g' instead of 'guarantor'
 
-				if (!guarantor.userId || guarantor.coverage === undefined) {
-					console.log(`Guarantor ${i + 1} missing required fields:`, guarantor);
+				if (!g.userId || g.coverage === undefined) {
+					console.log(`Guarantor ${idx + 1} missing required fields:`, g);
 					return NextResponse.json(
 						{
 							error: `Guarantor ${
-								i + 1
+								idx + 1
 							} is missing required fields (userId and coverage)`,
 						},
 						{ status: 400 },
 					);
 				}
 
-				if (guarantor.coverage < 0 || guarantor.coverage > 100) {
+				if (g.coverage < 0 || g.coverage > 100) {
 					return NextResponse.json(
 						{
-							error: `Guarantor ${i + 1} coverage must be between 0% and 100%`,
+							error: `Guarantor ${idx + 1} coverage must be between 0% and 100%`,
 						},
 						{ status: 400 },
 					);
 				}
 
-				if (guarantor.coverage === 0) {
+				// Handle zero coverage case
+				if (g.coverage === 0) {
 					console.log(
-						`Adding guarantor ${i + 1} with 0% coverage (no validation needed)`,
+						`Adding guarantor ${idx + 1} with 0% coverage (no validation needed)`,
 					);
 
 					guarantorDetails.push({
-						userId: new ObjectId(guarantor.userId),
-						fullName: guarantor.fullName || "Unknown",
-						email: guarantor.email || "",
-						phone: guarantor.phone || "",
+						userId: new ObjectId(g.userId),
+						fullName: g.fullName || "Unknown",
+						email: g.email || "",
+						phone: g.phone || "",
 						coverage: 0,
 						coverageAmount: 0,
-						savingsBalance: guarantor.savingsBalance || 0,
-						profession: guarantor.profession || "Not specified",
-						relationship: guarantor.relationship || "Colleague",
+						savingsBalance: g.savingsBalance || 0,
+						profession: g.profession || "Not specified",
+						relationship: g.relationship || "Colleague",
 						approved: true,
 						invitedAt: new Date(),
 						status: "approved",
@@ -258,144 +260,109 @@ export async function POST(request) {
 					continue;
 				}
 
-				let guarantorUser;
+				// For coverage > 0, validate the guarantor user exists
+				let guarantorUserRecord;
 				try {
-					guarantorUser = await db.collection("users").findOne({
-						_id: new ObjectId(guarantor.userId),
+					guarantorUserRecord = await db.collection("users").findOne({
+						_id: new ObjectId(g.userId),
 						membershipStatus: { $in: ["approved", "active"] },
 					});
 				} catch (error) {
 					console.error("Error finding guarantor user:", error);
 					return NextResponse.json(
-						{ error: `Invalid guarantor ${i + 1} user ID` },
+						{ error: `Invalid guarantor ${idx + 1} user ID` },
 						{ status: 400 },
 					);
 				}
 
-				if (!guarantorUser) {
+				if (!guarantorUserRecord) {
 					return NextResponse.json(
-						{ error: `Guarantor ${i + 1} not found or not an active member` },
+						{ error: `Guarantor ${idx + 1} not found or not an active member` },
 						{ status: 400 },
 					);
 				}
 
-				if (guarantor.userId === authResult.userId.toString()) {
+				if (g.userId === authResult.userId.toString()) {
 					return NextResponse.json(
 						{ error: "You cannot be your own guarantor" },
 						{ status: 400 },
 					);
 				}
 
-				// First, try to get savings from the savings collection
-				let totalGuarantorSavings = 0;
+				// Calculate guarantor's total assets
+				let guarantorTotalSavings = 0;
 
 				// Method 1: Check savings collection
-				const guarantorSavings = await db
+				const guarantorSavingsRecords = await db
 					.collection("savings")
-					.find({
-						userId: guarantor.userId,
-					})
+					.find({ userId: g.userId })
 					.toArray();
 
-				if (guarantorSavings && guarantorSavings.length > 0) {
-					totalGuarantorSavings = guarantorSavings.reduce(
-						(sum, saving) =>
-							sum + Number(saving.currentBalance || saving.amount || 0),
+				if (guarantorSavingsRecords && guarantorSavingsRecords.length > 0) {
+					guarantorTotalSavings = guarantorSavingsRecords.reduce(
+						(sum, record) =>
+							sum + Number(record.currentBalance || record.amount || 0),
 						0,
 					);
-					console.log(
-						`Guarantor savings from collection: ${totalGuarantorSavings}`,
-					);
 				}
 
-				// Method 2: If no savings found, check the user document directly
-				if (totalGuarantorSavings === 0) {
-					const guarantorUserRecord = await db.collection("users").findOne({
-						_id: new ObjectId(guarantor.userId),
-					});
-
-					if (guarantorUserRecord) {
-						// Check various possible field names for savings
-						totalGuarantorSavings =
-							guarantorUserRecord.savingsBalance ||
-							guarantorUserRecord.totalSavings ||
-							guarantorUserRecord.savings ||
-							0;
-
-						console.log(
-							`Guarantor savings from user record: ${totalGuarantorSavings}`,
-						);
-					}
+				// Method 2: If no savings found, check user document
+				if (guarantorTotalSavings === 0 && guarantorUserRecord.savingsBalance) {
+					guarantorTotalSavings = guarantorUserRecord.savingsBalance;
 				}
 
-				// Method 3: Check investments as alternative collateral
-				let totalGuarantorInvestments = 0;
-				if (totalGuarantorSavings < guarantorCoverageAmount * 0.5) {
-					const guarantorInvestments = await db
+				// Check investments as additional collateral
+				let guarantorTotalInvestments = 0;
+				if (
+					guarantorTotalSavings <
+					((Number(loanAmount) * g.coverage) / 100) * 0.5
+				) {
+					const guarantorInvestmentsRecords = await db
 						.collection("investments")
 						.find({
-							userId: guarantor.userId,
+							userId: g.userId,
 							status: "active",
 						})
 						.toArray();
 
-					totalGuarantorInvestments = guarantorInvestments.reduce(
+					guarantorTotalInvestments = guarantorInvestmentsRecords.reduce(
 						(sum, inv) => sum + Number(inv.currentValue || inv.amount || 0),
 						0,
 					);
-
-					console.log(`Guarantor investments: ${totalGuarantorInvestments}`);
 				}
 
-				// Use combined savings + investments for eligibility check
-				const totalGuarantorAssets =
-					totalGuarantorSavings + totalGuarantorInvestments;
+				const guarantorTotalAssets =
+					guarantorTotalSavings + guarantorTotalInvestments;
+				const guarantorCoverageAmount = (Number(loanAmount) * g.coverage) / 100;
 
 				if (
-					guarantor.coverage > 0 &&
-					totalGuarantorAssets < guarantorCoverageAmount * 0.5
+					g.coverage > 0 &&
+					guarantorTotalAssets < guarantorCoverageAmount * 0.5
 				) {
 					return NextResponse.json(
 						{
-							error: `Guarantor ${i + 1} (${guarantorUser.firstName} ${
-								guarantorUser.lastName
-							}) does not meet the minimum savings/investment requirement of ${(guarantorCoverageAmount * 0.5).toFixed(2)} for the requested coverage. Current assets: ${totalGuarantorAssets.toFixed(2)}`,
+							error: `Guarantor ${idx + 1} (${guarantorUserRecord.firstName} ${
+								guarantorUserRecord.lastName
+							}) does not meet the minimum asset requirement of ${(guarantorCoverageAmount * 0.5).toFixed(2)} for the requested coverage. Current assets: ${guarantorTotalAssets.toFixed(2)}`,
 						},
 						{ status: 400 },
 					);
 				}
 
-				const guarantorCoverageAmount =
-					(Number(loanAmount) * guarantor.coverage) / 100;
-
-				if (
-					guarantor.coverage > 0 &&
-					totalGuarantorSavings < guarantorCoverageAmount * 0.5
-				) {
-					return NextResponse.json(
-						{
-							error: `Guarantor ${i + 1} (${guarantorUser.firstName} ${
-								guarantorUser.lastName
-							}) does not meet the minimum savings requirement for the requested coverage`,
-						},
-						{ status: 400 },
-					);
-				}
-
-				totalGuarantorCoverage += Number(guarantor.coverage);
+				totalGuarantorCoverage += Number(g.coverage);
 
 				guarantorDetails.push({
-					userId: new ObjectId(guarantor.userId),
-					fullName: `${guarantorUser.firstName} ${guarantorUser.lastName}`,
-					email: guarantorUser.email,
-					phone: guarantorUser.phone,
-					coverage: Number(guarantor.coverage),
+					userId: new ObjectId(g.userId),
+					fullName: `${guarantorUserRecord.firstName} ${guarantorUserRecord.lastName}`,
+					email: guarantorUserRecord.email,
+					phone: guarantorUserRecord.phone,
+					coverage: Number(g.coverage),
 					coverageAmount: guarantorCoverageAmount,
-					savingsBalance: totalGuarantorSavings, // Store actual savings
-					investmentsBalance: totalGuarantorInvestments, // Add investments
-					totalAssets: totalGuarantorAssets, // Combined total
-					profession: guarantorUser.profession || "Not specified",
-					relationship: guarantor.relationship || "Colleague",
+					savingsBalance: guarantorTotalSavings,
+					investmentsBalance: guarantorTotalInvestments,
+					totalAssets: guarantorTotalAssets,
+					profession: guarantorUserRecord.profession || "Not specified",
+					relationship: g.relationship || "Colleague",
 					approved: false,
 					invitedAt: new Date(),
 					status: "pending",
