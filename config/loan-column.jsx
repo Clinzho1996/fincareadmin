@@ -1238,7 +1238,7 @@ const AdminLoansDashboard = () => {
 													handlePaymentConfirmation(repayment._id, "approve")
 												}
 												disabled={isProcessingAction}
-												className="px-4 py-0 bg-primary-1 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+												className="px-4 py-0 bg-primary-1 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex flex-row items-center gap-2">
 												<CheckCircle className="h-4 w-4" />
 												Approve Payment
 											</button>
@@ -1247,7 +1247,7 @@ const AdminLoansDashboard = () => {
 													handlePaymentConfirmation(repayment._id, "reject")
 												}
 												disabled={isProcessingAction}
-												className="px-4 py-2 bg-red text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
+												className="px-4 py-2 bg-red text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex flex-row items-center gap-2">
 												<XCircle className="h-4 w-4" />
 												Reject Payment
 											</button>
