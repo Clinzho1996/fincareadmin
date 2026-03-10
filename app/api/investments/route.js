@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
+// app/api/investments/route.js (updated GET method)
 export async function GET(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -16,14 +17,39 @@ export async function GET(request) {
 
 		const { db } = await connectToDatabase();
 
-		// ✅ Include image field in results
+		// Get investments with all fields including interest calculations
 		const investments = await db
 			.collection("investments")
 			.find({ userId: authResult.userId })
 			.project({}) // project everything
 			.toArray();
 
-		return NextResponse.json({ investments });
+		// Calculate current values with interest for any investments that might not have been updated by cron yet
+		const now = new Date();
+		const updatedInvestments = investments.map((investment) => {
+			if (
+				investment.status === "active" &&
+				investment.lastInterestCalculation
+			) {
+				const lastCalc = new Date(investment.lastInterestCalculation);
+				const daysSinceLastCalc = Math.floor(
+					(now - lastCalc) / (1000 * 60 * 60 * 24),
+				);
+
+				if (daysSinceLastCalc > 0 && investment.dailyInterestAmount) {
+					// Calculate interest for missed days
+					const missedInterest =
+						investment.dailyInterestAmount * daysSinceLastCalc;
+					investment.currentValue =
+						(investment.currentValue || investment.amount) + missedInterest;
+					investment.totalInterestEarned =
+						(investment.totalInterestEarned || 0) + missedInterest;
+				}
+			}
+			return investment;
+		});
+
+		return NextResponse.json({ investments: updatedInvestments });
 	} catch (error) {
 		console.error("GET /api/investments error:", error);
 		return NextResponse.json(
