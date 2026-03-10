@@ -63,7 +63,6 @@ export type Customer = {
 	kycCompleted?: boolean;
 	isExistingCustomer?: boolean;
 	activeLoans?: number;
-	pendingLoans?: number;
 };
 
 declare module "next-auth" {
@@ -490,17 +489,16 @@ const CustomerTable = () => {
 				const customer = row.original;
 				// Check both possible locations for loan data
 				const loans = customer.totalLoans || 0;
-				const activeLoans = customer.activeLoans || 0;
-				const pendingLoans = customer.pendingLoans || 0;
+				const activeLoans = customer.activeLoans ?? 0;
 
 				return (
 					<div className="flex flex-col">
 						<span className="text-xs text-primary-6 font-semibold">
 							{formatCurrency(loans)}
 						</span>
-						{(activeLoans ?? 0) > 0 && (
+						{activeLoans > 0 && (
 							<span className="text-xs text-green-600">
-								Active: {formatCurrency(activeLoans ?? 0)}
+								Active: {formatCurrency(activeLoans)}
 							</span>
 						)}
 					</div>
