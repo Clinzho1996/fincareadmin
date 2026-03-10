@@ -1,4 +1,4 @@
-// app/api/profile/route.js (updated)
+// app/api/profile/route.js
 export const dynamic = "force-dynamic";
 
 import { authenticate } from "@/lib/middleware";
@@ -12,7 +12,7 @@ export async function GET(request) {
 		if (authResult.error) {
 			return NextResponse.json(
 				{ error: authResult.error },
-				{ status: authResult.status }
+				{ status: authResult.status },
 			);
 		}
 
@@ -23,13 +23,13 @@ export async function GET(request) {
 			.collection("users")
 			.findOne(
 				{ _id: new ObjectId(authResult.userId) },
-				{ projection: { password: 0, otp: 0 } }
+				{ projection: { password: 0, otp: 0 } },
 			);
 
 		if (!user) {
 			return NextResponse.json(
 				{ error: "User not found or not verified" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
@@ -53,21 +53,21 @@ export async function GET(request) {
 			.find({ userId: userIdString })
 			.toArray();
 
-		// Calculate totals - ONLY include approved loans
+		// Calculate totals - use currentValue for investments (includes accrued interest)
 		const totalSavings = savings.reduce(
 			(sum, s) => sum + Number(s.currentBalance || 0),
-			0
+			0,
 		);
 		const totalInvestment = investments.reduce(
-			(sum, i) => sum + Number(i.amount || 0),
-			0
+			(sum, i) => sum + Number(i.currentValue || i.amount || 0), // Use currentValue if available
+			0,
 		);
 
 		// Only count approved loans
 		const approvedLoans = loans.filter((loan) => loan.status === "approved");
 		const totalLoans = approvedLoans.reduce(
 			(sum, l) => sum + Number(l.loanAmount || 0),
-			0
+			0,
 		);
 
 		const totalAuctions = auctions.length;
@@ -78,7 +78,7 @@ export async function GET(request) {
 				.collection("users")
 				.updateOne(
 					{ _id: new ObjectId(authResult.userId) },
-					{ $set: { totalLoans } }
+					{ $set: { totalLoans } },
 				);
 
 			// Update the user object for response
@@ -94,6 +94,19 @@ export async function GET(request) {
 			isMember = user.membershipStatus === "approved" ? "member" : "pending";
 		}
 
+		// Add interest summary to each investment
+		const enrichedInvestments = investments.map((inv) => ({
+			...inv,
+			interestEarned: inv.totalInterestEarned || 0,
+			projectedMaturityValue:
+				inv.amount +
+				inv.dailyInterestAmount *
+					Math.ceil(
+						(new Date(inv.maturityDate) - new Date(inv.startDate)) /
+							(1000 * 60 * 60 * 24),
+					),
+		}));
+
 		return NextResponse.json({
 			status: "success",
 			user: {
@@ -107,7 +120,7 @@ export async function GET(request) {
 				membershipStatus: user.membershipStatus || "none",
 			},
 			savings,
-			investments,
+			investments: enrichedInvestments,
 			loans: approvedLoans,
 			auctions,
 		});
@@ -115,7 +128,7 @@ export async function GET(request) {
 		console.error("GET /api/profile error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
