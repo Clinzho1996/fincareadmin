@@ -6,53 +6,84 @@ import { NextResponse } from "next/server";
 
 export async function POST(request) {
 	try {
+		const body = await request.json();
+
+		// Destructure with default empty string for otherName
 		const {
 			firstName,
 			lastName,
-			otherName,
+			otherName = "", // Default to empty string if not provided
 			phone,
 			email,
 			password,
 			confirmPassword,
-		} = await request.json();
+		} = body;
 
-		// Validation
-		if (
-			!firstName ||
-			!lastName ||
-			!phone ||
-			!email ||
-			!password ||
-			!confirmPassword
-		) {
-			return NextResponse.json(
-				{ error: "All fields except other name are required" },
-				{ status: 400 }
-			);
+		// Validation - explicitly note that otherName is optional
+		const requiredFields = {
+			firstName: "First name",
+			lastName: "Last name",
+			phone: "Phone number",
+			email: "Email",
+			password: "Password",
+			confirmPassword: "Confirm password",
+		};
+
+		// Check each required field
+		for (const [field, label] of Object.entries(requiredFields)) {
+			if (!body[field]) {
+				return NextResponse.json(
+					{ error: `${label} is required` },
+					{ status: 400 },
+				);
+			}
 		}
 
+		// Password validation
 		if (password !== confirmPassword) {
 			return NextResponse.json(
 				{ error: "Passwords do not match" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		if (password.length < 6) {
 			return NextResponse.json(
 				{ error: "Password must be at least 6 characters" },
-				{ status: 400 }
+				{ status: 400 },
+			);
+		}
+
+		// Email format validation (optional but recommended)
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(email)) {
+			return NextResponse.json(
+				{ error: "Please provide a valid email address" },
+				{ status: 400 },
+			);
+		}
+
+		// Phone number validation (optional but recommended)
+		const phoneRegex = /^[0-9+\-\s()]{10,}$/;
+		if (!phoneRegex.test(phone)) {
+			return NextResponse.json(
+				{ error: "Please provide a valid phone number" },
+				{ status: 400 },
 			);
 		}
 
 		const { db } = await connectToDatabase();
 
 		// Check if user already exists
-		const existingUser = await db.collection("users").findOne({ email });
+		const normalizedEmail = email.toLowerCase().trim();
+		const existingUser = await db
+			.collection("users")
+			.findOne({ email: normalizedEmail });
+
 		if (existingUser) {
 			return NextResponse.json(
 				{ error: "User already exists with this email" },
-				{ status: 409 }
+				{ status: 409 },
 			);
 		}
 
@@ -63,14 +94,12 @@ export async function POST(request) {
 		const otp = Math.floor(1000 + Math.random() * 9000).toString();
 		const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-		const normalizedEmail = email.toLowerCase().trim();
-
-		// Create user
+		// Create user object with optional otherName
 		const newUser = {
-			firstName,
-			lastName,
-			otherName: otherName || "",
-			phone,
+			firstName: firstName.trim(),
+			lastName: lastName.trim(),
+			otherName: otherName ? otherName.trim() : "", // Handle empty or whitespace
+			phone: phone.trim(),
 			email: normalizedEmail,
 			password: hashedPassword,
 			otp,
@@ -91,29 +120,35 @@ export async function POST(request) {
 			to: email,
 			subject: "Verify your FinCare account",
 			html: `
-        <h2>Welcome to FinCare!</h2>
+        <h2>Welcome to FinCare, ${firstName}!</h2>
         <p>Your verification code is: <strong>${otp}</strong></p>
         <p>This code will expire in 10 minutes.</p>
+        <p>If you didn't create an account with FinCare, please ignore this email.</p>
       `,
 		});
 
-		// Exclude password before returning
-		const userWithoutPassword = { ...newUser };
-		delete userWithoutPassword.password;
+		// Exclude password and sensitive data before returning
+		const {
+			password: _,
+			otp: __,
+			otpExpiry: ___,
+			...userWithoutSensitiveData
+		} = newUser;
 
 		return NextResponse.json(
 			{
+				success: true,
 				message: "User registered successfully. Please verify your email.",
 				userId: result.insertedId,
-				user: userWithoutPassword,
+				user: userWithoutSensitiveData,
 			},
-			{ status: 201 }
+			{ status: 201 },
 		);
 	} catch (error) {
 		console.error("POST /api/auth/register error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
+			{ error: "Internal server error. Please try again later." },
+			{ status: 500 },
 		);
 	}
 }
