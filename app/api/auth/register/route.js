@@ -128,12 +128,22 @@ export async function POST(request) {
 		});
 
 		// Exclude password and sensitive data before returning
-		const {
-			password: _,
-			otp: __,
-			otpExpiry: ___,
-			...userWithoutSensitiveData
-		} = newUser;
+		// Use pick/create a new object instead of destructuring with unused variables
+		const userWithoutSensitiveData = {
+			_id: result.insertedId,
+			firstName: newUser.firstName,
+			lastName: newUser.lastName,
+			otherName: newUser.otherName,
+			phone: newUser.phone,
+			email: newUser.email,
+			isEmailVerified: newUser.isEmailVerified,
+			savingsBalance: newUser.savingsBalance,
+			totalInvestment: newUser.totalInvestment,
+			totalLoans: newUser.totalLoans,
+			totalAuctions: newUser.totalAuctions,
+			createdAt: newUser.createdAt,
+			updatedAt: newUser.updatedAt,
+		};
 
 		return NextResponse.json(
 			{
