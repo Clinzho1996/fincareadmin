@@ -1247,7 +1247,7 @@ const AdminLoansDashboard = () => {
 													handlePaymentConfirmation(repayment._id, "reject")
 												}
 												disabled={isProcessingAction}
-												className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
+												className="px-4 py-2 bg-red text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
 												<XCircle className="h-4 w-4" />
 												Reject Payment
 											</button>
