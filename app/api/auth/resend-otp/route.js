@@ -44,9 +44,9 @@ export async function POST(request) {
 		// Send new OTP via email
 		await sendEmail({
 			to: email,
-			subject: "FinCare - New Verification Code",
+			subject: "Fincare - New Verification Code",
 			html: `
-        <h2>New Verification Code for FinCare</h2>
+        <h2>New Verification Code for Fincare</h2>
         <p>Your new verification code is: <strong>${otp}</strong></p>
         <p>This code will expire in 10 minutes.</p>
         <p>If you didn't request a new code, please ignore this email.</p>
