@@ -4,6 +4,56 @@ import { connectToDatabase } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
+// Password strength validation function
+const validatePasswordStrength = (password) => {
+	const checks = {
+		minLength: password.length >= 8,
+		hasLowercase: /[a-z]/.test(password),
+		hasUppercase: /[A-Z]/.test(password),
+		hasNumber: /[0-9]/.test(password),
+		hasSpecialChar: /[$@#&!]/.test(password),
+	};
+
+	const passedChecks = Object.values(checks).filter(Boolean).length;
+	const isStrong = passedChecks >= 4; // At least 4 out of 5 criteria
+
+	return {
+		isValid: isStrong,
+		checks,
+		strength: passedChecks,
+		strengthLevel: getStrengthLevel(passedChecks),
+		message: !isStrong ? getStrengthMessage(checks) : null,
+	};
+};
+
+const getStrengthLevel = (strength) => {
+	switch (strength) {
+		case 5:
+			return "Very Strong";
+		case 4:
+			return "Strong";
+		case 3:
+			return "Good";
+		case 2:
+			return "Weak";
+		default:
+			return "Very Weak";
+	}
+};
+
+const getStrengthMessage = (checks) => {
+	if (!checks.minLength) {
+		return "Password must be at least 8 characters long";
+	}
+	const missing = [];
+	if (!checks.hasLowercase) missing.push("lowercase letter");
+	if (!checks.hasUppercase) missing.push("uppercase letter");
+	if (!checks.hasNumber) missing.push("number");
+	if (!checks.hasSpecialChar) missing.push("special character ($@#&!)");
+
+	return `Password must contain at least one ${missing.join(", ")}`;
+};
+
 export async function POST(request) {
 	try {
 		const body = await request.json();
@@ -12,7 +62,7 @@ export async function POST(request) {
 		const {
 			firstName,
 			lastName,
-			otherName = "", // Default to empty string if not provided
+			otherName = "",
 			phone,
 			email,
 			password,
@@ -33,56 +83,104 @@ export async function POST(request) {
 		for (const [field, label] of Object.entries(requiredFields)) {
 			if (!body[field]) {
 				return NextResponse.json(
-					{ error: `${label} is required` },
+					{
+						success: false,
+						error: `${label} is required`,
+						field: field,
+					},
 					{ status: 400 },
 				);
 			}
 		}
 
-		// Password validation
+		// Check if passwords match
 		if (password !== confirmPassword) {
 			return NextResponse.json(
-				{ error: "Passwords do not match" },
+				{
+					success: false,
+					error: "Passwords do not match",
+					field: "confirmPassword",
+				},
 				{ status: 400 },
 			);
 		}
 
-		if (password.length < 6) {
+		// Validate password strength
+		const passwordValidation = validatePasswordStrength(password);
+		if (!passwordValidation.isValid) {
 			return NextResponse.json(
-				{ error: "Password must be at least 6 characters" },
+				{
+					success: false,
+					error: passwordValidation.message,
+					passwordStrength: {
+						score: passwordValidation.strength,
+						level: passwordValidation.strengthLevel,
+						requirements: passwordValidation.checks,
+					},
+				},
 				{ status: 400 },
 			);
 		}
 
-		// Email format validation (optional but recommended)
+		// Email format validation
 		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 		if (!emailRegex.test(email)) {
 			return NextResponse.json(
-				{ error: "Please provide a valid email address" },
+				{
+					success: false,
+					error: "Please provide a valid email address",
+					field: "email",
+				},
 				{ status: 400 },
 			);
 		}
 
-		// Phone number validation (optional but recommended)
-		const phoneRegex = /^[0-9+\-\s()]{10,}$/;
+		// Phone number validation (Nigerian phone numbers)
+		const phoneRegex = /^(0|234)?[7-9][0-1][0-9]{8}$/;
 		if (!phoneRegex.test(phone)) {
 			return NextResponse.json(
-				{ error: "Please provide a valid phone number" },
+				{
+					success: false,
+					error:
+						"Please provide a valid Nigerian phone number (e.g., 08012345678)",
+					field: "phone",
+				},
 				{ status: 400 },
 			);
 		}
 
 		const { db } = await connectToDatabase();
 
-		// Check if user already exists
+		// Check if user already exists by email
 		const normalizedEmail = email.toLowerCase().trim();
-		const existingUser = await db
+		const existingUserByEmail = await db
 			.collection("users")
 			.findOne({ email: normalizedEmail });
 
-		if (existingUser) {
+		if (existingUserByEmail) {
 			return NextResponse.json(
-				{ error: "User already exists with this email" },
+				{
+					success: false,
+					error: "An account already exists with this email address",
+					field: "email",
+				},
+				{ status: 409 },
+			);
+		}
+
+		// Check if user already exists by phone
+		const normalizedPhone = phone.trim();
+		const existingUserByPhone = await db
+			.collection("users")
+			.findOne({ phone: normalizedPhone });
+
+		if (existingUserByPhone) {
+			return NextResponse.json(
+				{
+					success: false,
+					error: "An account already exists with this phone number",
+					field: "phone",
+				},
 				{ status: 409 },
 			);
 		}
@@ -94,17 +192,18 @@ export async function POST(request) {
 		const otp = Math.floor(1000 + Math.random() * 9000).toString();
 		const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-		// Create user object with optional otherName
+		// Create user object
 		const newUser = {
 			firstName: firstName.trim(),
 			lastName: lastName.trim(),
-			otherName: otherName ? otherName.trim() : "", // Handle empty or whitespace
-			phone: phone.trim(),
+			otherName: otherName ? otherName.trim() : "",
+			phone: normalizedPhone,
 			email: normalizedEmail,
 			password: hashedPassword,
 			otp,
 			otpExpiry,
 			isEmailVerified: false,
+			failedLoginAttempts: 0,
 			savingsBalance: 0,
 			totalInvestment: 0,
 			totalLoans: 0,
@@ -115,20 +214,39 @@ export async function POST(request) {
 
 		const result = await db.collection("users").insertOne(newUser);
 
-		// Send OTP via email
+		// Send OTP via email with password requirements info
 		await sendEmail({
 			to: email,
-			subject: "Verify your FinCare account",
+			subject: "Verify your Fincare account",
 			html: `
-        <h2>Welcome to FinCare, ${firstName}!</h2>
-        <p>Your verification code is: <strong>${otp}</strong></p>
-        <p>This code will expire in 10 minutes.</p>
-        <p>If you didn't create an account with FinCare, please ignore this email.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0092DD;">Welcome to Fincare, ${firstName}!</h2>
+          <p>Thank you for registering with Fincare. Please use the verification code below to complete your registration:</p>
+          
+          <div style="background-color: #F3F4F6; padding: 15px; text-align: center; font-size: 32px; letter-spacing: 5px; font-weight: bold; margin: 20px 0;">
+            ${otp}
+          </div>
+          
+          <p>This code will expire in <strong>10 minutes</strong>.</p>
+          
+          <h3 style="color: #333; margin-top: 30px;">Account Information:</h3>
+          <ul style="color: #666; line-height: 1.6;">
+            <li><strong>Name:</strong> ${firstName} ${lastName}</li>
+            <li><strong>Email:</strong> ${email}</li>
+            <li><strong>Phone:</strong> ${phone}</li>
+          </ul>
+          
+          <p style="margin-top: 30px; color: #666; font-size: 12px;">
+            If you didn't create an account with Fincare, please ignore this email or contact our support team.
+          </p>
+          
+          <hr style="margin: 20px 0; border-color: #eee;" />
+          <p style="color: #999; font-size: 11px;">Fincare - Your Financial Companion</p>
+        </div>
       `,
 		});
 
 		// Exclude password and sensitive data before returning
-		// Use pick/create a new object instead of destructuring with unused variables
 		const userWithoutSensitiveData = {
 			_id: result.insertedId,
 			firstName: newUser.firstName,
@@ -151,13 +269,17 @@ export async function POST(request) {
 				message: "User registered successfully. Please verify your email.",
 				userId: result.insertedId,
 				user: userWithoutSensitiveData,
+				requiresVerification: true,
 			},
 			{ status: 201 },
 		);
 	} catch (error) {
 		console.error("POST /api/auth/register error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error. Please try again later." },
+			{
+				success: false,
+				error: "Unable to create account at this time. Please try again later.",
+			},
 			{ status: 500 },
 		);
 	}
