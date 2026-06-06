@@ -132,3 +132,99 @@ export async function GET(request) {
 		);
 	}
 }
+
+// app/api/profile/route.js (add PUT method)
+export async function PUT(request) {
+	try {
+		const authResult = await authenticate(request);
+		if (authResult.error) {
+			return NextResponse.json(
+				{ error: authResult.error },
+				{ status: authResult.status },
+			);
+		}
+
+		const body = await request.json();
+		const { firstName, lastName, otherName, email, phone } = body;
+
+		const { db } = await connectToDatabase();
+
+		// Build update object with only provided fields
+		const updateFields = {};
+		if (firstName !== undefined) updateFields.firstName = firstName.trim();
+		if (lastName !== undefined) updateFields.lastName = lastName.trim();
+		if (otherName !== undefined) updateFields.otherName = otherName.trim();
+		if (email !== undefined) updateFields.email = email.toLowerCase().trim();
+		if (phone !== undefined) updateFields.phone = phone.trim();
+
+		updateFields.updatedAt = new Date();
+
+		if (Object.keys(updateFields).length === 0) {
+			return NextResponse.json(
+				{ error: "No fields to update" },
+				{ status: 400 },
+			);
+		}
+
+		// Check if email is already taken by another user
+		if (email) {
+			const existingUser = await db.collection("users").findOne({
+				email: email.toLowerCase().trim(),
+				_id: { $ne: new ObjectId(authResult.userId) },
+			});
+
+			if (existingUser) {
+				return NextResponse.json(
+					{ error: "Email already in use by another account" },
+					{ status: 409 },
+				);
+			}
+		}
+
+		// Check if phone is already taken by another user
+		if (phone) {
+			const existingUser = await db.collection("users").findOne({
+				phone: phone.trim(),
+				_id: { $ne: new ObjectId(authResult.userId) },
+			});
+
+			if (existingUser) {
+				return NextResponse.json(
+					{ error: "Phone number already in use by another account" },
+					{ status: 409 },
+				);
+			}
+		}
+
+		const result = await db
+			.collection("users")
+			.updateOne(
+				{ _id: new ObjectId(authResult.userId) },
+				{ $set: updateFields },
+			);
+
+		if (result.matchedCount === 0) {
+			return NextResponse.json({ error: "User not found" }, { status: 404 });
+		}
+
+		// Get updated user data (excluding sensitive fields)
+		const updatedUser = await db
+			.collection("users")
+			.findOne(
+				{ _id: new ObjectId(authResult.userId) },
+				{ projection: { password: 0, otp: 0, resetOtp: 0, resetOtpExpiry: 0 } },
+			);
+
+		return NextResponse.json({
+			success: true,
+			message: "Profile updated successfully",
+			user: updatedUser,
+		});
+	} catch (error) {
+		console.error("PUT /api/profile error:", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 },
+		);
+	}
+}
