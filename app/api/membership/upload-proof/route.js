@@ -1,6 +1,7 @@
 // app/api/membership/upload-proof/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import Busboy from "busboy";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
@@ -24,11 +25,12 @@ export async function POST(request) {
 			);
 		}
 
-		// Parse FormData using request.formData()
-		const formData = await request.formData();
-		const paymentProof = formData.get("payment_proof");
-		const amount = formData.get("amount") || "100000";
-		const transactionRef = formData.get("transactionRef") || `TXN${Date.now()}`;
+		// Parse multipart form data with busboy
+		const { fields, files } = await parseMultipartFormData(request);
+
+		const paymentProof = files.payment_proof;
+		const amount = fields.amount || "100000";
+		const transactionRef = fields.transactionRef || `TXN${Date.now()}`;
 
 		if (!paymentProof) {
 			return NextResponse.json(
@@ -37,10 +39,8 @@ export async function POST(request) {
 			);
 		}
 
-		// Get file info
-		const fileBuffer = await paymentProof.arrayBuffer();
-		const buffer = Buffer.from(fileBuffer);
-		const base64Image = `data:${paymentProof.type};base64,${buffer.toString("base64")}`;
+		// Convert file to base64
+		const base64Image = `data:${paymentProof.mimeType};base64,${paymentProof.data.toString("base64")}`;
 
 		const { db } = await connectToDatabase();
 
@@ -107,6 +107,48 @@ export async function POST(request) {
 			{ status: 500 },
 		);
 	}
+}
+
+// Helper function to parse multipart form data
+async function parseMultipartFormData(request) {
+	return new Promise((resolve, reject) => {
+		const busboy = Busboy({ headers: request.headers });
+		const fields = {};
+		const files = {};
+
+		busboy.on("file", (fieldname, file, info) => {
+			const { filename, encoding, mimeType } = info;
+			const chunks = [];
+
+			file.on("data", (data) => {
+				chunks.push(data);
+			});
+
+			file.on("end", () => {
+				files[fieldname] = {
+					filename,
+					encoding,
+					mimeType,
+					data: Buffer.concat(chunks),
+				};
+			});
+		});
+
+		busboy.on("field", (fieldname, value) => {
+			fields[fieldname] = value;
+		});
+
+		busboy.on("error", (err) => {
+			reject(err);
+		});
+
+		busboy.on("close", () => {
+			resolve({ fields, files });
+		});
+
+		// Pipe the request body to busboy
+		request.body.pipe(busboy);
+	});
 }
 
 async function sendUserConfirmationEmail(user, amount, transactionRef) {
