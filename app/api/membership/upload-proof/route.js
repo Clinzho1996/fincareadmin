@@ -14,6 +14,13 @@ const transporter = nodemailer.createTransport({
 	},
 });
 
+// Disable body parsing to handle FormData manually
+export const config = {
+	api: {
+		bodyParser: false,
+	},
+};
+
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
@@ -24,9 +31,10 @@ export async function POST(request) {
 			);
 		}
 
+		// Parse FormData using request.formData()
 		const formData = await request.formData();
 		const paymentProof = formData.get("payment_proof");
-		const amount = formData.get("amount");
+		const amount = formData.get("amount") || "100000";
 		const transactionRef = formData.get("transactionRef") || `TXN${Date.now()}`;
 
 		if (!paymentProof) {
@@ -35,6 +43,11 @@ export async function POST(request) {
 				{ status: 400 },
 			);
 		}
+
+		// Get file info
+		const fileBuffer = await paymentProof.arrayBuffer();
+		const buffer = Buffer.from(fileBuffer);
+		const base64Image = `data:${paymentProof.type};base64,${buffer.toString("base64")}`;
 
 		const { db } = await connectToDatabase();
 
@@ -47,18 +60,13 @@ export async function POST(request) {
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
 		}
 
-		// Convert image to base64 for storage
-		const bytes = await paymentProof.arrayBuffer();
-		const buffer = Buffer.from(bytes);
-		const base64Image = `data:${paymentProof.type};base64,${buffer.toString("base64")}`;
-
 		// Create membership payment record
 		const membershipPayment = {
 			userId: new ObjectId(authResult.userId),
 			userEmail: user.email,
 			userName: `${user.firstName} ${user.lastName}`,
 			userPhone: user.phone,
-			amount: amount || 100000,
+			amount: parseInt(amount),
 			transactionRef,
 			paymentProof: base64Image,
 			paymentMethod: "bank_transfer",
@@ -72,12 +80,12 @@ export async function POST(request) {
 			.insertOne(membershipPayment);
 
 		// Send confirmation email to user
-		await sendUserConfirmationEmail(user, amount || 100000, transactionRef);
+		await sendUserConfirmationEmail(user, amount, transactionRef);
 
 		// Send notification email to admin
 		await sendAdminNotificationEmail(
 			user,
-			amount || 100000,
+			amount,
 			transactionRef,
 			result.insertedId,
 		);
@@ -86,7 +94,7 @@ export async function POST(request) {
 		await db.collection("notifications").insertOne({
 			userId: new ObjectId(authResult.userId),
 			title: "Premium Membership Application Received 🎉",
-			message: `Your premium membership payment of ₦${(amount || 100000).toLocaleString()} has been received. Our team will review and confirm your membership within 24-48 hours.`,
+			message: `Your premium membership payment of ₦${parseInt(amount).toLocaleString()} has been received. Our team will review and confirm your membership within 24-48 hours.`,
 			type: "success",
 			isRead: false,
 			createdAt: new Date(),
@@ -102,7 +110,7 @@ export async function POST(request) {
 	} catch (error) {
 		console.error("POST /api/membership/upload-proof error:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error: " + error.message },
 			{ status: 500 },
 		);
 	}
@@ -118,11 +126,11 @@ async function sendUserConfirmationEmail(user, amount, transactionRef) {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #0092DD;">Premium Membership Application Received</h2>
           <p>Dear ${user.firstName} ${user.lastName},</p>
-          <p>Thank you for choosing Fincare Premium! We have received your membership payment of <strong>₦${amount.toLocaleString()}</strong>.</p>
+          <p>Thank you for choosing Fincare Premium! We have received your membership payment of <strong>₦${parseInt(amount).toLocaleString()}</strong>.</p>
           
           <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin: 0 0 10px 0; color: #333;">Payment Details:</h3>
-            <p style="margin: 5px 0;"><strong>Amount:</strong> ₦${amount.toLocaleString()}</p>
+            <p style="margin: 5px 0;"><strong>Amount:</strong> ₦${parseInt(amount).toLocaleString()}</p>
             <p style="margin: 5px 0;"><strong>Transaction Reference:</strong> ${transactionRef}</p>
             <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
           </div>
@@ -173,7 +181,7 @@ async function sendAdminNotificationEmail(
             <p><strong>Name:</strong> ${user.firstName} ${user.lastName}</p>
             <p><strong>Email:</strong> ${user.email}</p>
             <p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
-            <p><strong>Amount:</strong> ₦${amount.toLocaleString()}</p>
+            <p><strong>Amount:</strong> ₦${parseInt(amount).toLocaleString()}</p>
             <p><strong>Transaction Ref:</strong> ${transactionRef}</p>
             <p><strong>Payment ID:</strong> ${paymentId}</p>
           </div>
