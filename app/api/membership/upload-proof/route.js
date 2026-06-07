@@ -14,13 +14,6 @@ const transporter = nodemailer.createTransport({
 	},
 });
 
-// Disable body parsing to handle FormData manually
-export const config = {
-	api: {
-		bodyParser: false,
-	},
-};
-
 export async function POST(request) {
 	try {
 		const authResult = await authenticate(request);
