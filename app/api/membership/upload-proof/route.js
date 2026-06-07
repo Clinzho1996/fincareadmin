@@ -25,6 +25,15 @@ export async function POST(request) {
 			);
 		}
 
+		// Check Content-Type
+		const contentType = request.headers.get("content-type") || "";
+		if (!contentType.includes("multipart/form-data")) {
+			return NextResponse.json(
+				{ error: "Content-Type must be multipart/form-data" },
+				{ status: 400 },
+			);
+		}
+
 		// Parse multipart form data with busboy
 		const { fields, files } = await parseMultipartFormData(request);
 
@@ -112,7 +121,8 @@ export async function POST(request) {
 // Helper function to parse multipart form data
 async function parseMultipartFormData(request) {
 	return new Promise((resolve, reject) => {
-		const busboy = Busboy({ headers: request.headers });
+		const contentType = request.headers.get("content-type") || "";
+		const busboy = Busboy({ headers: { "content-type": contentType } });
 		const fields = {};
 		const files = {};
 
@@ -165,26 +175,25 @@ async function sendUserConfirmationEmail(user, amount, transactionRef) {
           
           <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin: 0 0 10px 0; color: #333;">Payment Details:</h3>
-            <p style="margin: 5px 0;"><strong>Amount:</strong> ₦${parseInt(amount).toLocaleString()}</p>
-            <p style="margin: 5px 0;"><strong>Transaction Reference:</strong> ${transactionRef}</p>
-            <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Amount:</strong> ₦${parseInt(amount).toLocaleString()}</p>
+            <p><strong>Transaction Reference:</strong> ${transactionRef}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
           </div>
           
           <p>Our team will review your payment proof and activate your premium membership within <strong>24-48 hours</strong>.</p>
           
           <div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 0; color: #2E7D32;">✅ <strong>What happens next?</strong></p>
-            <ul style="margin-top: 10px;">
+            <p><strong>What happens next?</strong></p>
+            <ul>
               <li>Our team verifies your payment proof</li>
               <li>You receive a confirmation email once approved</li>
               <li>Your premium benefits are activated immediately</li>
-              <li>You get access to exclusive features</li>
             </ul>
           </div>
           
-          <p>If you have any questions, please contact our support team at support@fincare.com or call +234 912 605 6377.</p>
+          <p>If you have any questions, please contact our support team at support@fincare.com</p>
           
-          <hr style="margin: 20px 0; border-color: #eee;">
+          <hr>
           <p style="color: #888; font-size: 12px;">Thank you for choosing Fincare - Your Financial Companion</p>
         </div>
       `,
@@ -208,11 +217,11 @@ async function sendAdminNotificationEmail(
 			subject: "New Premium Membership Application",
 			html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0092DD;">New Premium Membership Application</h2>
+          <h2>New Premium Membership Application</h2>
           <p>A user has submitted a premium membership application.</p>
           
           <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin: 0 0 10px 0;">User Details:</h3>
+            <h3>User Details:</h3>
             <p><strong>Name:</strong> ${user.firstName} ${user.lastName}</p>
             <p><strong>Email:</strong> ${user.email}</p>
             <p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
@@ -222,11 +231,6 @@ async function sendAdminNotificationEmail(
           </div>
           
           <p>Please review the payment proof in the admin dashboard.</p>
-          
-          <a href="https://fincareadmin.vercel.app/admin/membership/${paymentId}" 
-             style="background-color: #0092DD; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Review Application
-          </a>
         </div>
       `,
 		});
