@@ -1,10 +1,10 @@
 // app/api/membership/upload-proof/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
+import { createNotification } from "@/lib/notifications";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import { createNotification } from "../../../../lib/notifications";
 
 const transporter = nodemailer.createTransport({
 	service: "gmail",
@@ -24,7 +24,7 @@ export async function POST(request) {
 			);
 		}
 
-		// Parse JSON body (not FormData!)
+		// Parse JSON body
 		const { paymentProof, amount, paymentMethod, transactionRef } =
 			await request.json();
 
@@ -46,30 +46,49 @@ export async function POST(request) {
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
 		}
 
-		// Check existing membership
-		if (user.membershipStatus === "approved") {
+		// Check if user already has premium membership
+		if (user.premiumMembership?.status === "approved") {
 			return NextResponse.json(
 				{ error: "You are already a premium member" },
 				{ status: 400 },
 			);
 		}
 
-		if (user.membershipStatus === "pending") {
+		// Check if there's already a pending premium application
+		if (user.premiumMembership?.status === "pending") {
 			return NextResponse.json(
-				{ error: "You already have a pending membership application" },
+				{
+					error:
+						"You already have a pending premium membership application. Please wait for admin approval.",
+				},
 				{ status: 400 },
 			);
 		}
 
-		// Create membership payment record
-		const membershipPayment = {
+		// Check if user has basic membership first
+		if (
+			user.membershipLevel !== "basic" ||
+			user.membershipStatus !== "approved"
+		) {
+			return NextResponse.json(
+				{
+					error:
+						"You need to complete basic membership registration before upgrading to premium",
+				},
+				{ status: 400 },
+			);
+		}
+
+		// Create premium membership payment record
+		const premiumPayment = {
 			userId: new ObjectId(authResult.userId),
 			userEmail: user.email,
 			userName: `${user.firstName} ${user.lastName}`,
 			userPhone: user.phone,
+			membershipType: "premium",
 			amount: Number(amount),
-			transactionRef: transactionRef || `TXN${Date.now()}`,
-			paymentProof: paymentProof, // Store base64 directly
+			transactionRef: transactionRef || `PREMIUM${Date.now()}`,
+			paymentProof: paymentProof,
 			paymentMethod: paymentMethod || "bank_transfer",
 			status: "pending",
 			createdAt: new Date(),
@@ -77,22 +96,26 @@ export async function POST(request) {
 		};
 
 		const result = await db
-			.collection("membership_payments")
-			.insertOne(membershipPayment);
+			.collection("premium_membership_payments")
+			.insertOne(premiumPayment);
 
-		// Update user membership status to pending
+		// Update user's premium membership status
 		await db.collection("users").updateOne(
 			{ _id: new ObjectId(authResult.userId) },
 			{
 				$set: {
-					membershipStatus: "pending",
-					membershipApplicationDate: new Date(),
+					premiumMembership: {
+						status: "pending",
+						applicationDate: new Date(),
+						paymentId: result.insertedId,
+						amount: Number(amount),
+					},
 					updatedAt: new Date(),
 				},
 			},
 		);
 
-		// Send emails
+		// Send confirmation emails
 		await sendConfirmationEmails(
 			user,
 			amount,
@@ -100,23 +123,25 @@ export async function POST(request) {
 			result.insertedId,
 		);
 
-		// Create notification using the createNotification function
+		// Create notification
 		await createNotification(
 			authResult.userId,
-			"Premium Membership Application Received 🎉",
-			`Your premium membership payment of ₦${Number(amount).toLocaleString()} has been received. Our team will review and confirm your membership within 24-48 hours.`,
+			"Premium Membership Upgrade Request Received 🎉",
+			`Your premium membership upgrade payment of ₦${Number(amount).toLocaleString()} has been received. Our team will review and activate your premium benefits within 24-48 hours.`,
 			"success",
 			{
 				paymentId: result.insertedId,
 				amount: Number(amount),
-				transactionRef: transactionRef || `TXN${Date.now()}`,
+				transactionRef: transactionRef || `PREMIUM${Date.now()}`,
+				membershipType: "premium",
 			},
-			"/membership/status",
+			"/premium-membership/status",
 		);
 
 		return NextResponse.json({
 			success: true,
-			message: "Payment proof uploaded successfully",
+			message:
+				"Premium membership upgrade request submitted successfully. You will receive a confirmation email once approved.",
 			paymentId: result.insertedId,
 		});
 	} catch (error) {
@@ -134,21 +159,32 @@ async function sendConfirmationEmails(user, amount, transactionRef, paymentId) {
 		await transporter.sendMail({
 			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
 			to: user.email,
-			subject: "Premium Membership Application Received",
+			subject: "Premium Membership Upgrade Request Received",
 			html: `
 				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-					<h2 style="color: #0092DD;">Premium Membership Application Received</h2>
+					<h2 style="color: #0092DD;">Premium Membership Upgrade Request Received</h2>
 					<p>Dear ${user.firstName},</p>
-					<p>Thank you for your premium membership payment of <strong>₦${Number(amount).toLocaleString()}</strong>.</p>
+					<p>Thank you for upgrading to <strong>Premium Membership</strong>!</p>
+					<p>We have received your payment of <strong>₦${Number(amount).toLocaleString()}</strong>.</p>
 					
 					<div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
 						<h3 style="margin: 0 0 10px 0;">Payment Details:</h3>
 						<p><strong>Amount:</strong> ₦${Number(amount).toLocaleString()}</p>
-						<p><strong>Transaction Reference:</strong> ${transactionRef || `TXN${Date.now()}`}</p>
+						<p><strong>Transaction Reference:</strong> ${transactionRef || `PREMIUM${Date.now()}`}</p>
 						<p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
 					</div>
 					
-					<p>Our team will review your application within <strong>24-48 hours</strong>. You will receive another email once your membership is activated.</p>
+					<p>Our team will review your payment and activate your premium benefits within <strong>24-48 hours</strong>.</p>
+					
+					<div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+						<p><strong>Premium Benefits you'll get:</strong></p>
+						<ul>
+							<li>Reduced loan interest rates</li>
+							<li>Priority loan consideration</li>
+							<li>Exclusive investment opportunities</li>
+							<li>Enhanced auction participation</li>
+						</ul>
+					</div>
 					
 					<p>If you have any questions, please contact our support team at support@fincare.com</p>
 					
@@ -167,23 +203,30 @@ async function sendConfirmationEmails(user, amount, transactionRef, paymentId) {
 		await transporter.sendMail({
 			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
 			to: process.env.ADMIN_EMAIL || "confidinho@yahoo.com",
-			subject: "New Premium Membership Application",
+			subject: "New Premium Membership Upgrade Request",
 			html: `
 				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-					<h2 style="color: #0092DD;">New Premium Membership Application</h2>
-					<p>A user has submitted a premium membership application.</p>
+					<h2 style="color: #0092DD;">New Premium Membership Upgrade Request</h2>
+					<p>A user has requested to upgrade to Premium Membership.</p>
 					
 					<div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
 						<h3 style="margin: 0 0 10px 0;">User Details:</h3>
 						<p><strong>Name:</strong> ${user.firstName} ${user.lastName}</p>
 						<p><strong>Email:</strong> ${user.email}</p>
 						<p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
-						<p><strong>Amount:</strong> ₦${Number(amount).toLocaleString()}</p>
-						<p><strong>Transaction Ref:</strong> ${transactionRef || `TXN${Date.now()}`}</p>
+						<p><strong>Current Membership:</strong> Basic (Approved)</p>
+						<p><strong>Requested:</strong> Premium Upgrade</p>
+						<p><strong>Amount Paid:</strong> ₦${Number(amount).toLocaleString()}</p>
+						<p><strong>Transaction Ref:</strong> ${transactionRef || `PREMIUM${Date.now()}`}</p>
 						<p><strong>Payment ID:</strong> ${paymentId}</p>
 					</div>
 					
-					<p>Please review the payment proof in the admin dashboard and approve/reject the membership.</p>
+					<p>Please review the payment proof and approve/reject this premium membership upgrade.</p>
+					
+					<a href="https://fincareadmin.vercel.app/admin/premium-membership/${paymentId}" 
+					   style="background-color: #0092DD; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+						Review Request
+					</a>
 				</div>
 			`,
 		});
