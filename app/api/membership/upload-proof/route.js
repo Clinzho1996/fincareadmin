@@ -65,20 +65,6 @@ export async function POST(request) {
 			);
 		}
 
-		// Check if user has basic membership first
-		if (
-			user.membershipLevel !== "basic" ||
-			user.membershipStatus !== "approved"
-		) {
-			return NextResponse.json(
-				{
-					error:
-						"You need to complete basic membership registration before upgrading to premium",
-				},
-				{ status: 400 },
-			);
-		}
-
 		// Create premium membership payment record
 		const premiumPayment = {
 			userId: new ObjectId(authResult.userId),
@@ -126,8 +112,8 @@ export async function POST(request) {
 		// Create notification
 		await createNotification(
 			authResult.userId,
-			"Premium Membership Upgrade Request Received 🎉",
-			`Your premium membership upgrade payment of ₦${Number(amount).toLocaleString()} has been received. Our team will review and activate your premium benefits within 24-48 hours.`,
+			"Premium Membership Application Received 🎉",
+			`Your premium membership payment of ₦${Number(amount).toLocaleString()} has been received. Our team will review and activate your premium benefits within 24-48 hours.`,
 			"success",
 			{
 				paymentId: result.insertedId,
@@ -141,7 +127,7 @@ export async function POST(request) {
 		return NextResponse.json({
 			success: true,
 			message:
-				"Premium membership upgrade request submitted successfully. You will receive a confirmation email once approved.",
+				"Premium membership application submitted successfully. You will receive a confirmation email once approved.",
 			paymentId: result.insertedId,
 		});
 	} catch (error) {
@@ -159,12 +145,12 @@ async function sendConfirmationEmails(user, amount, transactionRef, paymentId) {
 		await transporter.sendMail({
 			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
 			to: user.email,
-			subject: "Premium Membership Upgrade Request Received",
+			subject: "Premium Membership Application Received",
 			html: `
 				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-					<h2 style="color: #0092DD;">Premium Membership Upgrade Request Received</h2>
+					<h2 style="color: #0092DD;">Premium Membership Application Received</h2>
 					<p>Dear ${user.firstName},</p>
-					<p>Thank you for upgrading to <strong>Premium Membership</strong>!</p>
+					<p>Thank you for choosing <strong>Premium Membership</strong>!</p>
 					<p>We have received your payment of <strong>₦${Number(amount).toLocaleString()}</strong>.</p>
 					
 					<div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -203,29 +189,27 @@ async function sendConfirmationEmails(user, amount, transactionRef, paymentId) {
 		await transporter.sendMail({
 			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
 			to: process.env.ADMIN_EMAIL || "confidinho@yahoo.com",
-			subject: "New Premium Membership Upgrade Request",
+			subject: "New Premium Membership Application",
 			html: `
 				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-					<h2 style="color: #0092DD;">New Premium Membership Upgrade Request</h2>
-					<p>A user has requested to upgrade to Premium Membership.</p>
+					<h2 style="color: #0092DD;">New Premium Membership Application</h2>
+					<p>A user has applied for Premium Membership.</p>
 					
 					<div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
 						<h3 style="margin: 0 0 10px 0;">User Details:</h3>
 						<p><strong>Name:</strong> ${user.firstName} ${user.lastName}</p>
 						<p><strong>Email:</strong> ${user.email}</p>
 						<p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
-						<p><strong>Current Membership:</strong> Basic (Approved)</p>
-						<p><strong>Requested:</strong> Premium Upgrade</p>
 						<p><strong>Amount Paid:</strong> ₦${Number(amount).toLocaleString()}</p>
 						<p><strong>Transaction Ref:</strong> ${transactionRef || `PREMIUM${Date.now()}`}</p>
 						<p><strong>Payment ID:</strong> ${paymentId}</p>
 					</div>
 					
-					<p>Please review the payment proof and approve/reject this premium membership upgrade.</p>
+					<p>Please review the payment proof and approve/reject this premium membership application.</p>
 					
 					<a href="https://fincareadmin.vercel.app/admin/premium-membership/${paymentId}" 
 					   style="background-color: #0092DD; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-						Review Request
+						Review Application
 					</a>
 				</div>
 			`,
