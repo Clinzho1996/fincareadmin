@@ -1,12 +1,10 @@
 // app/api/membership/upload-proof/route.js
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
-import Busboy from "busboy";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
-// Configure email transporter
 const transporter = nodemailer.createTransport({
 	service: "gmail",
 	auth: {
@@ -25,31 +23,16 @@ export async function POST(request) {
 			);
 		}
 
-		// Check Content-Type
-		const contentType = request.headers.get("content-type") || "";
-		if (!contentType.includes("multipart/form-data")) {
+		// Parse JSON body (not FormData!)
+		const { paymentProof, amount, paymentMethod, transactionRef } =
+			await request.json();
+
+		if (!paymentProof || !amount) {
 			return NextResponse.json(
-				{ error: "Content-Type must be multipart/form-data" },
+				{ error: "Payment proof and amount are required" },
 				{ status: 400 },
 			);
 		}
-
-		// Parse multipart form data with busboy
-		const { fields, files } = await parseMultipartFormData(request);
-
-		const paymentProof = files.payment_proof;
-		const amount = fields.amount || "100000";
-		const transactionRef = fields.transactionRef || `TXN${Date.now()}`;
-
-		if (!paymentProof) {
-			return NextResponse.json(
-				{ error: "Payment proof is required" },
-				{ status: 400 },
-			);
-		}
-
-		// Convert file to base64
-		const base64Image = `data:${paymentProof.mimeType};base64,${paymentProof.data.toString("base64")}`;
 
 		const { db } = await connectToDatabase();
 
@@ -62,16 +45,24 @@ export async function POST(request) {
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
 		}
 
+		// Check existing membership
+		if (user.membershipStatus === "approved") {
+			return NextResponse.json(
+				{ error: "You are already a premium member" },
+				{ status: 400 },
+			);
+		}
+
 		// Create membership payment record
 		const membershipPayment = {
 			userId: new ObjectId(authResult.userId),
 			userEmail: user.email,
 			userName: `${user.firstName} ${user.lastName}`,
 			userPhone: user.phone,
-			amount: parseInt(amount),
-			transactionRef,
-			paymentProof: base64Image,
-			paymentMethod: "bank_transfer",
+			amount: Number(amount),
+			transactionRef: transactionRef || `TXN${Date.now()}`,
+			paymentProof: paymentProof, // Store base64 directly
+			paymentMethod: paymentMethod || "bank_transfer",
 			status: "pending",
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -81,32 +72,39 @@ export async function POST(request) {
 			.collection("membership_payments")
 			.insertOne(membershipPayment);
 
-		// Send confirmation email to user
-		await sendUserConfirmationEmail(user, amount, transactionRef);
+		// Update user membership status
+		await db.collection("users").updateOne(
+			{ _id: new ObjectId(authResult.userId) },
+			{
+				$set: {
+					membershipStatus: "pending",
+					membershipApplicationDate: new Date(),
+					updatedAt: new Date(),
+				},
+			},
+		);
 
-		// Send notification email to admin
-		await sendAdminNotificationEmail(
+		// Send emails (optional but recommended)
+		await sendConfirmationEmails(
 			user,
 			amount,
 			transactionRef,
 			result.insertedId,
 		);
 
-		// Create notification for user
+		// Create notification
 		await db.collection("notifications").insertOne({
 			userId: new ObjectId(authResult.userId),
 			title: "Premium Membership Application Received 🎉",
-			message: `Your premium membership payment of ₦${parseInt(amount).toLocaleString()} has been received. Our team will review and confirm your membership within 24-48 hours.`,
+			message: `Your premium membership payment of ₦${Number(amount).toLocaleString()} has been received. Our team will review and confirm your membership within 24-48 hours.`,
 			type: "success",
 			isRead: false,
 			createdAt: new Date(),
-			updatedAt: new Date(),
 		});
 
 		return NextResponse.json({
 			success: true,
-			message:
-				"Payment proof uploaded successfully. You will receive a confirmation email shortly.",
+			message: "Payment proof uploaded successfully",
 			paymentId: result.insertedId,
 		});
 	} catch (error) {
@@ -118,124 +116,21 @@ export async function POST(request) {
 	}
 }
 
-// Helper function to parse multipart form data
-async function parseMultipartFormData(request) {
-	return new Promise((resolve, reject) => {
-		const contentType = request.headers.get("content-type") || "";
-		const busboy = Busboy({ headers: { "content-type": contentType } });
-		const fields = {};
-		const files = {};
-
-		busboy.on("file", (fieldname, file, info) => {
-			const { filename, encoding, mimeType } = info;
-			const chunks = [];
-
-			file.on("data", (data) => {
-				chunks.push(data);
-			});
-
-			file.on("end", () => {
-				files[fieldname] = {
-					filename,
-					encoding,
-					mimeType,
-					data: Buffer.concat(chunks),
-				};
-			});
-		});
-
-		busboy.on("field", (fieldname, value) => {
-			fields[fieldname] = value;
-		});
-
-		busboy.on("error", (err) => {
-			reject(err);
-		});
-
-		busboy.on("close", () => {
-			resolve({ fields, files });
-		});
-
-		// Pipe the request body to busboy
-		request.body.pipe(busboy);
-	});
-}
-
-async function sendUserConfirmationEmail(user, amount, transactionRef) {
+async function sendConfirmationEmails(user, amount, transactionRef, paymentId) {
+	// Send user confirmation email
 	try {
 		await transporter.sendMail({
 			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
 			to: user.email,
 			subject: "Premium Membership Application Received",
 			html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0092DD;">Premium Membership Application Received</h2>
-          <p>Dear ${user.firstName} ${user.lastName},</p>
-          <p>Thank you for choosing Fincare Premium! We have received your membership payment of <strong>₦${parseInt(amount).toLocaleString()}</strong>.</p>
-          
-          <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin: 0 0 10px 0; color: #333;">Payment Details:</h3>
-            <p><strong>Amount:</strong> ₦${parseInt(amount).toLocaleString()}</p>
-            <p><strong>Transaction Reference:</strong> ${transactionRef}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-          </div>
-          
-          <p>Our team will review your payment proof and activate your premium membership within <strong>24-48 hours</strong>.</p>
-          
-          <div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>What happens next?</strong></p>
-            <ul>
-              <li>Our team verifies your payment proof</li>
-              <li>You receive a confirmation email once approved</li>
-              <li>Your premium benefits are activated immediately</li>
-            </ul>
-          </div>
-          
-          <p>If you have any questions, please contact our support team at support@fincare.com</p>
-          
-          <hr>
-          <p style="color: #888; font-size: 12px;">Thank you for choosing Fincare - Your Financial Companion</p>
-        </div>
-      `,
+				<h2>Premium Membership Application Received</h2>
+				<p>Dear ${user.firstName},</p>
+				<p>Thank you for your premium membership payment of ₦${Number(amount).toLocaleString()}.</p>
+				<p>Our team will review your application within 24-48 hours.</p>
+			`,
 		});
-		console.log(`Confirmation email sent to ${user.email}`);
 	} catch (error) {
-		console.error("Error sending user confirmation email:", error);
-	}
-}
-
-async function sendAdminNotificationEmail(
-	user,
-	amount,
-	transactionRef,
-	paymentId,
-) {
-	try {
-		await transporter.sendMail({
-			from: `"Fincare CMS" <${process.env.EMAIL_USER}>`,
-			to: process.env.ADMIN_EMAIL || "confidinho@yahoo.com",
-			subject: "New Premium Membership Application",
-			html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>New Premium Membership Application</h2>
-          <p>A user has submitted a premium membership application.</p>
-          
-          <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <h3>User Details:</h3>
-            <p><strong>Name:</strong> ${user.firstName} ${user.lastName}</p>
-            <p><strong>Email:</strong> ${user.email}</p>
-            <p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
-            <p><strong>Amount:</strong> ₦${parseInt(amount).toLocaleString()}</p>
-            <p><strong>Transaction Ref:</strong> ${transactionRef}</p>
-            <p><strong>Payment ID:</strong> ${paymentId}</p>
-          </div>
-          
-          <p>Please review the payment proof in the admin dashboard.</p>
-        </div>
-      `,
-		});
-		console.log("Admin notification email sent");
-	} catch (error) {
-		console.error("Error sending admin notification email:", error);
+		console.error("Email error:", error);
 	}
 }
