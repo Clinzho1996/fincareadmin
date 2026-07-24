@@ -1,4 +1,4 @@
-// app/api/user/bids/route.js - FIXED VERSION
+// app/api/user/bids/route.js - FIXED WITH PROPER ESCROW SYSTEM
 import { authenticate } from "@/lib/middleware";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -112,7 +112,7 @@ export async function POST(request) {
 
 		const userBalance = user.savingsBalance || user.totalSavings || 0;
 
-		// Check if user has enough balance
+		// Check if user has enough balance for the bid
 		if (amount > userBalance) {
 			return NextResponse.json(
 				{
@@ -122,7 +122,51 @@ export async function POST(request) {
 			);
 		}
 
-		// Create the bid
+		// ---- FIX: ESCROW SYSTEM ----
+		// Check if user already has an active bid on this auction
+		const existingUserBid = await db.collection("bids").findOne({
+			auctionId: new ObjectId(auctionId),
+			userId: userId,
+			status: "leading",
+		});
+
+		if (existingUserBid) {
+			// User already has a leading bid - refund their previous bid first
+			await db.collection("users").updateOne(
+				{ _id: userId },
+				{
+					$inc: {
+						savingsBalance: existingUserBid.amount, // Refund previous bid
+					},
+				},
+			);
+
+			// Update old bid status
+			await db.collection("bids").updateOne(
+				{ _id: existingUserBid._id },
+				{
+					$set: {
+						status: "replaced",
+						updatedAt: new Date(),
+					},
+				},
+			);
+		}
+
+		// Now deduct the NEW bid amount from user's balance
+		await db.collection("users").updateOne(
+			{ _id: userId },
+			{
+				$inc: {
+					savingsBalance: -amount, // Deduct new bid
+				},
+				$set: {
+					updatedAt: new Date(),
+				},
+			},
+		);
+
+		// Create the NEW bid
 		const bidData = {
 			auctionId: new ObjectId(auctionId),
 			userId: userId,
@@ -134,7 +178,7 @@ export async function POST(request) {
 			updatedAt: new Date(),
 		};
 
-		// Insert the bid
+		// Insert the new bid
 		const result = await db.collection("bids").insertOne(bidData);
 
 		// Update the auction's current bid
@@ -143,19 +187,6 @@ export async function POST(request) {
 			{
 				$set: {
 					currentBid: amount,
-					updatedAt: new Date(),
-				},
-			},
-		);
-
-		// Deduct the bid amount from user's savings
-		await db.collection("users").updateOne(
-			{ _id: userId },
-			{
-				$inc: {
-					savingsBalance: -amount,
-				},
-				$set: {
 					updatedAt: new Date(),
 				},
 			},
@@ -174,9 +205,9 @@ export async function POST(request) {
 
 		await db.collection("notifications").insertOne(notification);
 
-		// If there was a previous leading bid, refund the previous bidder
+		// ---- REFUND PREVIOUS LEADING BIDDER (if any and not the current user) ----
 		if (currentBid > 0) {
-			const previousBids = await db
+			const previousLeadingBid = await db
 				.collection("bids")
 				.find({
 					auctionId: new ObjectId(auctionId),
@@ -187,10 +218,10 @@ export async function POST(request) {
 				.limit(1)
 				.toArray();
 
-			if (previousBids.length > 0) {
-				const previousBid = previousBids[0];
+			if (previousLeadingBid.length > 0) {
+				const previousBid = previousLeadingBid[0];
 
-				// Refund the previous bidder
+				// REFUND the previous bidder
 				await db.collection("users").updateOne(
 					{ _id: previousBid.userId },
 					{
@@ -210,6 +241,19 @@ export async function POST(request) {
 						},
 					},
 				);
+
+				// Create notification for outbid user
+				const outbidNotification = {
+					userId: previousBid.userId,
+					type: "outbid",
+					title: "You've Been Outbid!",
+					message: `Your bid of ₦${Number(previousBid.amount).toLocaleString()} on "${auction.title}" has been surpassed by ₦${Number(amount - previousBid.amount).toLocaleString()}`,
+					relatedAuctionId: new ObjectId(auctionId),
+					isRead: false,
+					createdAt: new Date(),
+				};
+
+				await db.collection("notifications").insertOne(outbidNotification);
 			}
 		}
 
