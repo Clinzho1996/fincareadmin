@@ -14,13 +14,20 @@ export async function POST(request) {
 		const { db } = await connectToDatabase();
 		const user = await db.collection("users").findOne({ email });
 
+		// If user doesn't exist, return clear message
 		if (!user) {
-			// Don't reveal whether email exists for security
-			return NextResponse.json({
-				message: "If the email exists, a password reset code has been sent",
-			});
+			return NextResponse.json(
+				{
+					error: "No account found with this email address",
+					shouldCreateAccount: true,
+					message:
+						"This email is not registered. Please create an account instead.",
+				},
+				{ status: 404 },
+			);
 		}
 
+		// User exists - proceed with OTP generation
 		// Generate OTP
 		const otp = Math.floor(1000 + Math.random() * 9000).toString();
 		const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -34,7 +41,7 @@ export async function POST(request) {
 					resetOtpExpiry: otpExpiry,
 					updatedAt: new Date(),
 				},
-			}
+			},
 		);
 
 		// Send OTP via email
@@ -42,20 +49,23 @@ export async function POST(request) {
 			to: email,
 			subject: "Reset your FinCare password",
 			html: `
-        <h2>Password Reset Request</h2>
-        <p>Your password reset code is: <strong>${otp}</strong></p>
-        <p>This code will expire in 10 minutes.</p>
-      `,
+				<h2>Password Reset Request</h2>
+				<p>Your password reset code is: <strong>${otp}</strong></p>
+				<p>This code will expire in 10 minutes.</p>
+				<p>If you didn't request this, please ignore this email.</p>
+			`,
 		});
 
+		// Return success for existing users
 		return NextResponse.json({
-			message: "If the email exists, a password reset code has been sent",
+			success: true,
+			message: "Password reset code has been sent to your email",
 		});
 	} catch (error) {
 		console.error("POST /api/forgot-password error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
